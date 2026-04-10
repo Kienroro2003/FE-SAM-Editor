@@ -12,7 +12,7 @@ React + Vite + TypeScript frontend for existing BE auth/workspace APIs.
 ## Run locally
 
 ```bash
-cd frontend
+cd FE-SAM-Editor
 npm install
 npm run dev
 ```
@@ -29,10 +29,17 @@ Copy `.env.example` to `.env.local` if you need custom values.
 ## OpenAPI contract sync
 
 ```bash
-npm run openapi:sync
+cd FE-SAM-Editor
+npm run openapi:sync -- http://127.0.0.1:8080/v3/api-docs
 npm run openapi:types
 # or
 npm run openapi:refresh
+```
+
+If you are currently inside the backend repo, run the frontend script with `--prefix` instead of calling `npm` from the wrong directory:
+
+```bash
+npm --prefix ../FE-SAM-Editor run openapi:sync -- http://127.0.0.1:8080/v3/api-docs
 ```
 
 This updates:
