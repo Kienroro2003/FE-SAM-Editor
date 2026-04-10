@@ -15,6 +15,7 @@ import type {
   WorkspaceSummaryResponse,
   WorkspaceTreeResponse,
 } from '../shared/api/types';
+import type { CodeCoverageDecoration, CoverageTone } from '../shared/utils/coverage';
 import { useAuth } from '../shared/auth/AuthContext';
 import { resolveApiErrorMessage } from '../shared/utils/errors';
 import { formatBytes } from '../shared/utils/format';
@@ -26,6 +27,7 @@ type AuthAction = 'refresh' | 'logout' | 'logoutAll' | null;
 interface CodeFocusRequest {
   startLine: number;
   endLine: number | null;
+  coverageTone: CoverageTone;
   requestKey: number;
 }
 
@@ -39,6 +41,7 @@ export function WorkspacePage() {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFileContent, setSelectedFileContent] = useState<WorkspaceFileContentResponse | null>(null);
   const [codeFocusRequest, setCodeFocusRequest] = useState<CodeFocusRequest | null>(null);
+  const [codeCoverageDecorations, setCodeCoverageDecorations] = useState<CodeCoverageDecoration[]>([]);
 
   const [repoUrl, setRepoUrl] = useState('');
   const [folderFiles, setFolderFiles] = useState<File[]>([]);
@@ -72,6 +75,11 @@ export function WorkspacePage() {
     setMessage('');
   }, []);
 
+  const clearCodeViewerState = useCallback(() => {
+    setCodeFocusRequest(null);
+    setCodeCoverageDecorations([]);
+  }, []);
+
   const loadWorkspaces = useCallback(async () => {
     setIsLoadingWorkspaces(true);
     try {
@@ -88,7 +96,7 @@ export function WorkspacePage() {
     setIsLoadingTree(true);
     setSelectedFilePath(null);
     setSelectedFileContent(null);
-    setCodeFocusRequest(null);
+    clearCodeViewerState();
 
     try {
       const response = await workspaceApi.getWorkspaceTree(projectId);
@@ -99,18 +107,18 @@ export function WorkspacePage() {
     } finally {
       setIsLoadingTree(false);
     }
-  }, []);
+  }, [clearCodeViewerState]);
 
   const handleSelectWorkspace = useCallback(
     (projectId: number) => {
       setWorkspaceTree(null);
       setSelectedFilePath(null);
       setSelectedFileContent(null);
-      setCodeFocusRequest(null);
+      clearCodeViewerState();
       setSelectedProjectId(projectId);
       clearFeedback();
     },
-    [clearFeedback],
+    [clearCodeViewerState, clearFeedback],
   );
 
   const handleBackToProjects = useCallback(() => {
@@ -118,9 +126,9 @@ export function WorkspacePage() {
     setWorkspaceTree(null);
     setSelectedFilePath(null);
     setSelectedFileContent(null);
-    setCodeFocusRequest(null);
+    clearCodeViewerState();
     clearFeedback();
-  }, [clearFeedback]);
+  }, [clearCodeViewerState, clearFeedback]);
 
   const handleOpenFile = useCallback(
     async (path: string) => {
@@ -130,7 +138,7 @@ export function WorkspacePage() {
 
       setIsLoadingFile(true);
       setSelectedFilePath(path);
-      setCodeFocusRequest(null);
+      clearCodeViewerState();
       try {
         const response = await workspaceApi.getWorkspaceFileContent(selectedProjectId, path);
         setSelectedFileContent(response.data);
@@ -141,7 +149,7 @@ export function WorkspacePage() {
         setIsLoadingFile(false);
       }
     },
-    [selectedProjectId],
+    [clearCodeViewerState, selectedProjectId],
   );
 
   const handleFolderInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -217,7 +225,7 @@ export function WorkspacePage() {
         setWorkspaceTree(null);
         setSelectedFilePath(null);
         setSelectedFileContent(null);
-        setCodeFocusRequest(null);
+        clearCodeViewerState();
       }
       setDeleteCandidate(null);
     } catch (err) {
@@ -225,7 +233,7 @@ export function WorkspacePage() {
     } finally {
       setDeletingProjectId(null);
     }
-  }, [clearFeedback, deleteCandidate, selectedProjectId]);
+  }, [clearCodeViewerState, clearFeedback, deleteCandidate, selectedProjectId]);
 
   const handleImportGithub = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -343,12 +351,17 @@ export function WorkspacePage() {
     }
   }, [clearFeedback, clearSession, navigate]);
 
-  const handleFocusCodeRange = useCallback((startLine: number, endLine: number | null) => {
+  const handleFocusCodeRange = useCallback((startLine: number, endLine: number | null, coverageTone: CoverageTone) => {
     setCodeFocusRequest((previous) => ({
       startLine,
       endLine,
+      coverageTone,
       requestKey: (previous?.requestKey ?? 0) + 1,
     }));
+  }, []);
+
+  const handleSetCodeCoverageDecorations = useCallback((decorations: CodeCoverageDecoration[]) => {
+    setCodeCoverageDecorations(decorations);
   }, []);
 
   useEffect(() => {
@@ -361,7 +374,7 @@ export function WorkspacePage() {
       setWorkspaceTree(null);
       setSelectedFilePath(null);
       setSelectedFileContent(null);
-      setCodeFocusRequest(null);
+      clearCodeViewerState();
       return;
     }
 
@@ -371,9 +384,9 @@ export function WorkspacePage() {
       setWorkspaceTree(null);
       setSelectedFilePath(null);
       setSelectedFileContent(null);
-      setCodeFocusRequest(null);
+      clearCodeViewerState();
     }
-  }, [selectedProjectId, workspaces]);
+  }, [clearCodeViewerState, selectedProjectId, workspaces]);
 
   useEffect(() => {
     if (selectedProjectId === null) {
@@ -496,7 +509,12 @@ export function WorkspacePage() {
         <section className="middle-panel panel stretch">
           <h2>Code Viewer</h2>
           <p className="panel-muted panel-description">Chỉ đọc, không chỉnh sửa trực tiếp trên trình duyệt.</p>
-          <CodeViewer file={selectedFileContent} isLoading={isLoadingFile} focusRequest={codeFocusRequest} />
+          <CodeViewer
+            file={selectedFileContent}
+            isLoading={isLoadingFile}
+            focusRequest={codeFocusRequest}
+            coverageDecorations={codeCoverageDecorations}
+          />
         </section>
 
         <section className="right-panel panel stretch">
@@ -506,6 +524,7 @@ export function WorkspacePage() {
             file={selectedFileContent}
             isFileLoading={isLoadingFile}
             onFocusCodeRange={handleFocusCodeRange}
+            onSetCodeCoverageDecorations={handleSetCodeCoverageDecorations}
           />
         </section>
       </section>

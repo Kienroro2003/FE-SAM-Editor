@@ -50,6 +50,45 @@
         }
       }
     },
+    "/api/workspaces/{projectId}/analysis/java/coverage": {
+      "post": {
+        "tags": [
+          "analysis-controller"
+        ],
+        "operationId": "runJavaCoverage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/JavaFileCoverageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/import/github": {
       "post": {
         "tags": [
@@ -496,6 +535,15 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "coverageRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         ],
         "responses": {
@@ -676,6 +724,104 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FunctionAnalysisSummaryResponse"
+            }
+          }
+        }
+      },
+      "CoverageFunctionSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "functionId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "functionName": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "startLine": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "endLine": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cyclomaticComplexity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "coverageStatus": {
+            "type": "string"
+          },
+          "coveredLineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedLineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "coveredBranchCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedBranchCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "JavaFileCoverageResponse": {
+        "type": "object",
+        "properties": {
+          "coverageRunId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "projectId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "path": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "exitCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overlayAvailable": {
+            "type": "boolean"
+          },
+          "command": {
+            "type": "string"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverageFunctionSummaryResponse"
             }
           }
         }
@@ -937,6 +1083,25 @@
           "endLine": {
             "type": "integer",
             "format": "int32"
+          },
+          "coverageStatus": {
+            "type": "string"
+          },
+          "coveredLineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedLineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "coveredBranchCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedBranchCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -985,6 +1150,29 @@
             "items": {
               "$ref": "#/components/schemas/AnalysisGraphEdgeResponse"
             }
+          },
+          "coverageRunId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "coverageStatus": {
+            "type": "string"
+          },
+          "coveredLineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedLineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "coveredBranchCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missedBranchCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

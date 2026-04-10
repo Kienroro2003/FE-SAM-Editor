@@ -99,12 +99,47 @@ export interface JavaFileAnalysisResponse {
   functions: FunctionAnalysisSummaryResponse[];
 }
 
+export interface CoverageFunctionSummaryResponse {
+  functionId: number;
+  functionName: string;
+  signature: string;
+  startLine: number;
+  endLine: number;
+  cyclomaticComplexity: number;
+  coverageStatus: string | null;
+  coveredLineCount: number | null;
+  missedLineCount: number | null;
+  coveredBranchCount: number | null;
+  missedBranchCount: number | null;
+}
+
+export interface JavaFileCoverageResponse {
+  coverageRunId: number | null;
+  projectId: number;
+  path: string;
+  language: string;
+  status: string | null;
+  exitCode: number | null;
+  overlayAvailable: boolean;
+  command: string | null;
+  stdout: string | null;
+  stderr: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  functions: CoverageFunctionSummaryResponse[];
+}
+
 export interface AnalysisGraphNodeResponse {
   id: string;
   type: string;
   label: string;
   startLine: number | null;
   endLine: number | null;
+  coverageStatus: string | null;
+  coveredLineCount: number | null;
+  missedLineCount: number | null;
+  coveredBranchCount: number | null;
+  missedBranchCount: number | null;
 }
 
 export interface AnalysisGraphEdgeResponse {
@@ -125,6 +160,12 @@ export interface FunctionCfgResponse {
   exitNodeIds: string[];
   nodes: AnalysisGraphNodeResponse[];
   edges: AnalysisGraphEdgeResponse[];
+  coverageRunId: number | null;
+  coverageStatus: string | null;
+  coveredLineCount: number | null;
+  missedLineCount: number | null;
+  coveredBranchCount: number | null;
+  missedBranchCount: number | null;
 }
 
 export interface DeleteWorkspaceResponse {

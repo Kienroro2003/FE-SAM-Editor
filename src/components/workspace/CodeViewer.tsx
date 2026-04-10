@@ -2,11 +2,13 @@ import Editor from '@monaco-editor/react';
 import { useCallback, useEffect, useRef, type ComponentProps } from 'react';
 import type { IRange, editor } from 'monaco-editor';
 import type { WorkspaceFileContentResponse } from '../../shared/api/types';
+import type { CodeCoverageDecoration, CoverageTone } from '../../shared/utils/coverage';
 import { LoadingState } from '../common/LoadingState';
 
 interface CodeFocusRequest {
   startLine: number;
   endLine: number | null;
+  coverageTone: CoverageTone;
   requestKey: number;
 }
 
@@ -14,6 +16,7 @@ interface CodeViewerProps {
   file: WorkspaceFileContentResponse | null;
   isLoading: boolean;
   focusRequest: CodeFocusRequest | null;
+  coverageDecorations: CodeCoverageDecoration[];
 }
 
 const LANGUAGE_MAP: Record<string, string> = {
@@ -37,19 +40,44 @@ function clampLineNumber(lineNumber: number, lineCount: number): number {
   return Math.min(Math.max(lineNumber, 1), lineCount);
 }
 
-export function CodeViewer({ file, isLoading, focusRequest }: CodeViewerProps) {
+function focusDecorationClasses(coverageTone: CoverageTone): {
+  className: string;
+  linesDecorationsClassName: string;
+} {
+  return {
+    className: `code-viewer-line-focus-${coverageTone}`,
+    linesDecorationsClassName: `code-viewer-line-focus-gutter-${coverageTone}`,
+  };
+}
+
+function coverageDecorationClassName(coverageTone: CoverageTone): string {
+  return `code-viewer-line-coverage-${coverageTone}`;
+}
+
+export function CodeViewer({ file, isLoading, focusRequest, coverageDecorations }: CodeViewerProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<MonacoInstance | null>(null);
-  const decorationIdsRef = useRef<string[]>([]);
+  const focusDecorationIdsRef = useRef<string[]>([]);
+  const coverageDecorationIdsRef = useRef<string[]>([]);
 
   const clearFocusDecorations = useCallback(() => {
     const editorInstance = editorRef.current;
     if (!editorInstance) {
-      decorationIdsRef.current = [];
+      focusDecorationIdsRef.current = [];
       return;
     }
 
-    decorationIdsRef.current = editorInstance.deltaDecorations(decorationIdsRef.current, []);
+    focusDecorationIdsRef.current = editorInstance.deltaDecorations(focusDecorationIdsRef.current, []);
+  }, []);
+
+  const clearCoverageDecorations = useCallback(() => {
+    const editorInstance = editorRef.current;
+    if (!editorInstance) {
+      coverageDecorationIdsRef.current = [];
+      return;
+    }
+
+    coverageDecorationIdsRef.current = editorInstance.deltaDecorations(coverageDecorationIdsRef.current, []);
   }, []);
 
   const applyFocusRequest = useCallback(
@@ -71,14 +99,15 @@ export function CodeViewer({ file, isLoading, focusRequest }: CodeViewerProps) {
         endLineNumber: Math.max(startLine, endLine),
         endColumn: model.getLineMaxColumn(Math.max(startLine, endLine)),
       };
+      const decorationClasses = focusDecorationClasses(request.coverageTone);
 
-      decorationIdsRef.current = editorInstance.deltaDecorations(decorationIdsRef.current, [
+      focusDecorationIdsRef.current = editorInstance.deltaDecorations(focusDecorationIdsRef.current, [
         {
           range: focusRange,
           options: {
             isWholeLine: true,
-            className: 'code-viewer-line-focus',
-            linesDecorationsClassName: 'code-viewer-line-focus-gutter',
+            className: decorationClasses.className,
+            linesDecorationsClassName: decorationClasses.linesDecorationsClassName,
           },
         },
       ]);
@@ -89,31 +118,78 @@ export function CodeViewer({ file, isLoading, focusRequest }: CodeViewerProps) {
     [],
   );
 
+  const applyCoverageDecorations = useCallback((nextCoverageDecorations: CodeCoverageDecoration[]) => {
+    const editorInstance = editorRef.current;
+    const model = editorInstance?.getModel();
+
+    if (!editorInstance || !model) {
+      return;
+    }
+
+    const maxLine = model.getLineCount();
+    coverageDecorationIdsRef.current = editorInstance.deltaDecorations(
+      coverageDecorationIdsRef.current,
+      nextCoverageDecorations.map((decoration) => {
+        const startLine = clampLineNumber(decoration.startLine, maxLine);
+        const endLine = clampLineNumber(decoration.endLine, maxLine);
+
+        return {
+          range: {
+            startLineNumber: Math.min(startLine, endLine),
+            startColumn: 1,
+            endLineNumber: Math.max(startLine, endLine),
+            endColumn: model.getLineMaxColumn(Math.max(startLine, endLine)),
+          },
+          options: {
+            isWholeLine: true,
+            className: coverageDecorationClassName(decoration.coverageTone),
+          },
+        };
+      }),
+    );
+  }, []);
+
   const handleEditorMount = useCallback(
     (editorInstance: editor.IStandaloneCodeEditor, monacoInstance: MonacoInstance) => {
       editorRef.current = editorInstance;
       monacoRef.current = monacoInstance;
 
+      applyCoverageDecorations(coverageDecorations);
+
       if (focusRequest) {
         applyFocusRequest(focusRequest);
       }
     },
-    [applyFocusRequest, focusRequest],
+    [applyCoverageDecorations, applyFocusRequest, coverageDecorations, focusRequest],
   );
 
   useEffect(() => {
     if (!file) {
       clearFocusDecorations();
+      clearCoverageDecorations();
       return;
     }
 
     if (!focusRequest) {
       clearFocusDecorations();
+    } else {
+      applyFocusRequest(focusRequest);
+    }
+  }, [applyFocusRequest, clearCoverageDecorations, clearFocusDecorations, file, focusRequest]);
+
+  useEffect(() => {
+    if (!file) {
+      clearCoverageDecorations();
       return;
     }
 
-    applyFocusRequest(focusRequest);
-  }, [applyFocusRequest, clearFocusDecorations, file, focusRequest]);
+    if (coverageDecorations.length === 0) {
+      clearCoverageDecorations();
+      return;
+    }
+
+    applyCoverageDecorations(coverageDecorations);
+  }, [applyCoverageDecorations, clearCoverageDecorations, coverageDecorations, file]);
 
   if (isLoading) {
     return <LoadingState message="Loading file content..." className="panel-loading" />;

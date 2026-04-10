@@ -1,9 +1,15 @@
 import { httpClient } from './httpClient';
-import type { FunctionCfgResponse, JavaFileAnalysisResponse } from './types';
+import type { FunctionCfgResponse, JavaFileAnalysisResponse, JavaFileCoverageResponse } from './types';
 
 export const analysisApi = {
   analyzeJavaFile(projectId: number, path: string) {
     return httpClient.post<JavaFileAnalysisResponse>(`/workspaces/${projectId}/analysis/java`, null, {
+      params: { path },
+    });
+  },
+
+  runJavaCoverage(projectId: number, path: string) {
+    return httpClient.post<JavaFileCoverageResponse>(`/workspaces/${projectId}/analysis/java/coverage`, null, {
       params: { path },
     });
   },
@@ -14,7 +20,9 @@ export const analysisApi = {
     });
   },
 
-  getFunctionCfg(projectId: number, functionId: number) {
-    return httpClient.get<FunctionCfgResponse>(`/workspaces/${projectId}/analysis/functions/${functionId}/cfg`);
+  getFunctionCfg(projectId: number, functionId: number, coverageRunId?: number) {
+    return httpClient.get<FunctionCfgResponse>(`/workspaces/${projectId}/analysis/functions/${functionId}/cfg`, {
+      params: coverageRunId == null ? undefined : { coverageRunId },
+    });
   },
 };

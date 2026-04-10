@@ -16,12 +16,17 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { AnalysisGraphNodeResponse, FunctionCfgResponse } from '../../shared/api/types';
+import type { CoverageTone } from '../../shared/utils/coverage';
+import { toCoverageTone } from '../../shared/utils/coverage';
 import { LoadingState } from '../common/LoadingState';
 
 interface CfgGraphProps {
   cfg: FunctionCfgResponse | null;
   isLoading: boolean;
-  onNodeSelect: (startLine: number, endLine: number | null) => void;
+  onNodeSelect: (startLine: number, endLine: number | null, coverageTone: CoverageTone) => void;
+  graphError?: string;
+  emptyMessage?: string;
+  loadingMessage?: string;
 }
 
 interface CfgHandleData {
@@ -37,7 +42,9 @@ interface CfgNodeData {
   lineRange: string | null;
   startLine: number | null;
   endLine: number | null;
+  coverageTone: CoverageTone;
   handles: CfgHandleData[];
+  tooltip: string | null;
 }
 
 interface EdgePoint {
@@ -90,6 +97,18 @@ function isDecisionNode(type: string): boolean {
   return type === 'CONDITION' || type === 'LOOP_CONDITION';
 }
 
+function isTechnicalNode(type: string): boolean {
+  return type === 'ENTRY' || type === 'EXIT' || type === 'NOOP';
+}
+
+function resolveNodeCoverageTone(node: AnalysisGraphNodeResponse): CoverageTone {
+  if (isTechnicalNode(node.type)) {
+    return 'neutral';
+  }
+
+  return toCoverageTone(node);
+}
+
 function formatLineRange(startLine: number | null, endLine: number | null): string | null {
   if (startLine == null || endLine == null) {
     return null;
@@ -114,47 +133,12 @@ function edgeTone(label: string | null): string {
   }
 }
 
-function nodeStyle(type: string): Node['style'] {
-  switch (type) {
-    case 'ENTRY':
-      return {
-        background: '#def6ea',
-        borderColor: '#197d4f',
-        color: '#125b39',
-      };
-    case 'EXIT':
-      return {
-        background: '#fce4e4',
-        borderColor: '#b94040',
-        color: '#7f2b2b',
-      };
-    case 'CONDITION':
-    case 'LOOP_CONDITION':
-      return {
-        background: '#fff0d7',
-        borderColor: '#b67b1f',
-        color: '#805717',
-      };
-    case 'RETURN':
-    case 'BREAK':
-      return {
-        background: '#ede7ff',
-        borderColor: '#6c57b8',
-        color: '#47378a',
-      };
-    case 'JOIN':
-      return {
-        background: '#e6f3ff',
-        borderColor: '#1a77b8',
-        color: '#115178',
-      };
-    default:
-      return {
-        background: '#fffdf8',
-        borderColor: '#dfd2bf',
-        color: '#2f2419',
-      };
+function buildNodeTooltip(type: string): string | null {
+  if (!isTechnicalNode(type)) {
+    return null;
   }
+
+  return 'Technical CFG node. It does not map to executable code, so coverage remains neutral.';
 }
 
 function sortNodes(left: AnalysisGraphNodeResponse, right: AnalysisGraphNodeResponse): number {
@@ -1113,9 +1097,30 @@ function buildHandleStyle(port: ElkPort, handleId: string): CSSProperties {
   return { bottom: -6, left: centerXPercent };
 }
 
+function toTypeClassName(nodeType: string): string {
+  return `cfg-node-type-${nodeType.toLowerCase().replace(/_/g, '-')}`;
+}
+
+function toCoverageClassName(nodeType: string, coverageTone: CoverageTone): string {
+  if (isTechnicalNode(nodeType)) {
+    return 'cfg-node-coverage-neutral';
+  }
+
+  return `cfg-node-coverage-${coverageTone}`;
+}
+
 const CfgNode = memo(function CfgNode({ data }: NodeProps<CfgNodeData>) {
+  const shellClassName = [
+    'cfg-node-shell',
+    toTypeClassName(data.nodeType),
+    toCoverageClassName(data.nodeType, data.coverageTone),
+    isTechnicalNode(data.nodeType) ? 'cfg-node-technical' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className="cfg-node-shell">
+    <div className={shellClassName} title={data.tooltip ?? undefined}>
       {data.handles.map((handle) => (
         <Handle
           key={handle.id}
@@ -1219,17 +1224,20 @@ function toReactFlowGraph(cfg: FunctionCfgResponse, layoutedGraph: ElkNode): { n
         lineRange: formatLineRange(source.startLine, source.endLine),
         startLine: source.startLine,
         endLine: source.endLine,
+        coverageTone: resolveNodeCoverageTone(source),
         handles,
+        tooltip: buildNodeTooltip(source.type),
       },
       style: {
-        ...nodeStyle(source.type),
         width: NODE_WIDTH,
         minHeight: NODE_HEIGHT,
-        borderWidth: 1.5,
+        border: 'none',
         borderRadius: 18,
-        boxShadow: '0 10px 22px rgb(47 36 25 / 10%)',
         padding: 0,
         fontSize: 12,
+        background: 'transparent',
+        boxShadow: 'none',
+        overflow: 'visible',
         cursor: source.startLine != null ? 'pointer' : 'default',
       },
     };
@@ -1270,7 +1278,7 @@ function toReactFlowGraph(cfg: FunctionCfgResponse, layoutedGraph: ElkNode): { n
   return { nodes: flowNodes, edges: flowEdges };
 }
 
-export function CfgGraph({ cfg, isLoading, onNodeSelect }: CfgGraphProps) {
+export function CfgGraph({ cfg, isLoading, onNodeSelect, graphError, emptyMessage, loadingMessage }: CfgGraphProps) {
   const [graph, setGraph] = useState<{ nodes: Node<CfgNodeData>[]; edges: Edge[] }>({ nodes: [], edges: [] });
   const [isLayouting, setIsLayouting] = useState(false);
 
@@ -1314,6 +1322,7 @@ export function CfgGraph({ cfg, isLoading, onNodeSelect }: CfgGraphProps) {
 
   const isBusy = isLoading || isLayouting;
   const fitViewOptions = useMemo(() => ({ padding: 0.24 }), []);
+  const defaultEmptyMessage = emptyMessage ?? 'Run analysis or coverage and select a function to inspect its CFG.';
   const formulaMetrics = useMemo(() => {
     if (!cfg) {
       return null;
@@ -1330,19 +1339,21 @@ export function CfgGraph({ cfg, isLoading, onNodeSelect }: CfgGraphProps) {
   }, [cfg]);
 
   if (isBusy) {
-    return <LoadingState message="Loading control flow graph..." className="analysis-loading" />;
+    return <LoadingState message={loadingMessage ?? 'Loading control flow graph...'} className="analysis-loading" />;
   }
 
   if (!cfg) {
-    return <div className="analysis-empty-state">Run analysis and select a function to inspect its CFG.</div>;
-  }
-
-  if (graph.nodes.length === 0) {
-    return <div className="analysis-empty-state">Unable to render CFG layout for this function.</div>;
+    return (
+      <div className="analysis-graph-shell">
+        {graphError && <div className="feedback error analysis-feedback">{graphError}</div>}
+        <div className="analysis-empty-state">{defaultEmptyMessage}</div>
+      </div>
+    );
   }
 
   return (
     <div className="analysis-graph-shell">
+      {graphError && <div className="feedback error analysis-feedback">{graphError}</div>}
       {formulaMetrics && (
         <div className="cfg-formula-bar" aria-label="CFG formula summary">
           <span className="cfg-formula-chip">E = {formulaMetrics.edgeCount}</span>
@@ -1351,34 +1362,61 @@ export function CfgGraph({ cfg, isLoading, onNodeSelect }: CfgGraphProps) {
         </div>
       )}
 
-      <div className="analysis-graph">
-        <ReactFlow
-          key={cfg.functionId}
-          nodes={graph.nodes}
-          edges={graph.edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={fitViewOptions}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnDrag
-          zoomOnScroll
-          minZoom={0.25}
-          maxZoom={1.4}
-          onNodeClick={(_, node) => {
-            const { startLine, endLine } = node.data as CfgNodeData;
-            if (startLine == null) {
-              return;
-            }
-            onNodeSelect(startLine, endLine);
-          }}
-        >
-          <Background color="#eadfce" gap={18} size={1} />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+      <div className="cfg-legend" aria-label="CFG coverage legend">
+        <span className="cfg-legend-item">
+          <span className="cfg-legend-swatch technical" aria-hidden="true" />
+          ENTRY / EXIT / NOOP
+        </span>
+        <span className="cfg-legend-item">
+          <span className="cfg-legend-swatch covered" aria-hidden="true" />
+          Covered
+        </span>
+        <span className="cfg-legend-item">
+          <span className="cfg-legend-swatch missed" aria-hidden="true" />
+          Missed
+        </span>
+        <span className="cfg-legend-item">
+          <span className="cfg-legend-swatch partial" aria-hidden="true" />
+          Partial
+        </span>
+        <span className="cfg-legend-item">
+          <span className="cfg-legend-swatch neutral" aria-hidden="true" />
+          Neutral
+        </span>
       </div>
+
+      {graph.nodes.length === 0 ? (
+        <div className="analysis-empty-state">Unable to render CFG layout for this function.</div>
+      ) : (
+        <div className="analysis-graph">
+          <ReactFlow
+            key={`${cfg.functionId}:${cfg.coverageRunId ?? 'plain'}`}
+            nodes={graph.nodes}
+            edges={graph.edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            fitViewOptions={fitViewOptions}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            panOnDrag
+            zoomOnScroll
+            minZoom={0.25}
+            maxZoom={1.4}
+            onNodeClick={(_, node) => {
+              const { startLine, endLine, coverageTone } = node.data as CfgNodeData;
+              if (startLine == null) {
+                return;
+              }
+              onNodeSelect(startLine, endLine, coverageTone);
+            }}
+          >
+            <Background color="#eadfce" gap={18} size={1} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,10 +3,532 @@
  * Do not make direct changes to the file.
  */
 
-export type paths = Record<string, never>;
+export interface paths {
+    "/api/workspaces/{projectId}/analysis/java": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["analyzeJavaFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}/analysis/java/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["runJavaCoverage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/import/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importGithubWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/import/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importFolderZipWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verifyOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/resend-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resendOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/refresh-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refreshToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMyWorkspaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWorkspaceTree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}/files/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWorkspaceFileContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}/analysis/functions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFunctionSummaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}/analysis/functions/{functionId}/cfg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFunctionCfg"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["githubLoginHint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteWorkspace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{projectId}/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteWorkspaceFolder"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        FunctionAnalysisSummaryResponse: {
+            /** Format: int64 */
+            functionId?: number;
+            functionName?: string;
+            signature?: string;
+            /** Format: int32 */
+            startLine?: number;
+            /** Format: int32 */
+            endLine?: number;
+            /** Format: int32 */
+            cyclomaticComplexity?: number;
+        };
+        JavaFileAnalysisResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            path?: string;
+            language?: string;
+            cached?: boolean;
+            functions?: components["schemas"]["FunctionAnalysisSummaryResponse"][];
+        };
+        CoverageFunctionSummaryResponse: {
+            /** Format: int64 */
+            functionId?: number;
+            functionName?: string;
+            signature?: string;
+            /** Format: int32 */
+            startLine?: number;
+            /** Format: int32 */
+            endLine?: number;
+            /** Format: int32 */
+            cyclomaticComplexity?: number;
+            coverageStatus?: string;
+            /** Format: int32 */
+            coveredLineCount?: number;
+            /** Format: int32 */
+            missedLineCount?: number;
+            /** Format: int32 */
+            coveredBranchCount?: number;
+            /** Format: int32 */
+            missedBranchCount?: number;
+        };
+        JavaFileCoverageResponse: {
+            /** Format: int64 */
+            coverageRunId?: number;
+            /** Format: int64 */
+            projectId?: number;
+            path?: string;
+            language?: string;
+            status?: string;
+            /** Format: int32 */
+            exitCode?: number;
+            overlayAvailable?: boolean;
+            command?: string;
+            stdout?: string;
+            stderr?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            functions?: components["schemas"]["CoverageFunctionSummaryResponse"][];
+        };
+        ImportGithubWorkspaceRequest: {
+            repoUrl: string;
+        };
+        ImportGithubWorkspaceResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            name?: string;
+            sourceUrl?: string;
+            /** Format: int32 */
+            totalFiles?: number;
+            /** Format: int64 */
+            totalSizeBytes?: number;
+        };
+        VerifyOtpRequest: {
+            /** Format: email */
+            email: string;
+            otpCode: string;
+        };
+        AuthResponse: {
+            accessToken?: string;
+            refreshToken?: string;
+            tokenType?: string;
+            email?: string;
+            fullName?: string;
+        };
+        RegisterRequest: {
+            /** Format: email */
+            email: string;
+            fullName: string;
+            password: string;
+        };
+        RefreshTokenRequest: {
+            refreshToken: string;
+        };
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        WorkspaceSummaryResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            name?: string;
+            /** @enum {string} */
+            sourceType?: "GITHUB" | "LOCAL_FOLDER";
+            sourceUrl?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        WorkspaceTreeNodeResponse: {
+            name?: string;
+            path?: string;
+            type?: string;
+            language?: string;
+            children?: components["schemas"]["WorkspaceTreeNodeResponse"][];
+        };
+        WorkspaceTreeResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            projectName?: string;
+            nodes?: components["schemas"]["WorkspaceTreeNodeResponse"][];
+        };
+        WorkspaceFileContentResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            path?: string;
+            language?: string;
+            content?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+        };
+        AnalysisGraphEdgeResponse: {
+            id?: string;
+            source?: string;
+            target?: string;
+            label?: string;
+        };
+        AnalysisGraphNodeResponse: {
+            id?: string;
+            type?: string;
+            label?: string;
+            /** Format: int32 */
+            startLine?: number;
+            /** Format: int32 */
+            endLine?: number;
+            coverageStatus?: string;
+            /** Format: int32 */
+            coveredLineCount?: number;
+            /** Format: int32 */
+            missedLineCount?: number;
+            /** Format: int32 */
+            coveredBranchCount?: number;
+            /** Format: int32 */
+            missedBranchCount?: number;
+        };
+        FunctionCfgResponse: {
+            /** Format: int64 */
+            functionId?: number;
+            functionName?: string;
+            signature?: string;
+            /** Format: int32 */
+            startLine?: number;
+            /** Format: int32 */
+            endLine?: number;
+            /** Format: int32 */
+            cyclomaticComplexity?: number;
+            entryNodeId?: string;
+            exitNodeIds?: string[];
+            nodes?: components["schemas"]["AnalysisGraphNodeResponse"][];
+            edges?: components["schemas"]["AnalysisGraphEdgeResponse"][];
+            /** Format: int64 */
+            coverageRunId?: number;
+            coverageStatus?: string;
+            /** Format: int32 */
+            coveredLineCount?: number;
+            /** Format: int32 */
+            missedLineCount?: number;
+            /** Format: int32 */
+            coveredBranchCount?: number;
+            /** Format: int32 */
+            missedBranchCount?: number;
+        };
+        DeleteWorkspaceResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            /** Format: int32 */
+            deletedFiles?: number;
+            message?: string;
+        };
+        DeleteWorkspaceFolderResponse: {
+            /** Format: int64 */
+            projectId?: number;
+            path?: string;
+            /** Format: int32 */
+            deletedFiles?: number;
+            message?: string;
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -14,4 +536,481 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    analyzeJavaFile: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["JavaFileAnalysisResponse"];
+                };
+            };
+        };
+    };
+    runJavaCoverage: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["JavaFileCoverageResponse"];
+                };
+            };
+        };
+    };
+    importGithubWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportGithubWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportGithubWorkspaceResponse"];
+                };
+            };
+        };
+    };
+    importFolderZipWorkspace: {
+        parameters: {
+            query?: {
+                workspaceName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportGithubWorkspaceResponse"];
+                };
+            };
+        };
+    };
+    verifyOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyOtpRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    resendOtp: {
+        parameters: {
+            query: {
+                email: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    refreshToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    logoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    getMyWorkspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WorkspaceSummaryResponse"][];
+                };
+            };
+        };
+    };
+    getWorkspaceTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WorkspaceTreeResponse"];
+                };
+            };
+        };
+    };
+    getWorkspaceFileContent: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WorkspaceFileContentResponse"];
+                };
+            };
+        };
+    };
+    getFunctionSummaries: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["JavaFileAnalysisResponse"];
+                };
+            };
+        };
+    };
+    getFunctionCfg: {
+        parameters: {
+            query?: {
+                coverageRunId?: number;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+                functionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FunctionCfgResponse"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    githubLoginHint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DeleteWorkspaceResponse"];
+                };
+            };
+        };
+    };
+    deleteWorkspaceFolder: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DeleteWorkspaceFolderResponse"];
+                };
+            };
+        };
+    };
+}
