@@ -1,0 +1,47 @@
+name: OpenAPI Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  sync-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync OpenAPI schema
+        env:
+          BE_OPENAPI_URL: ${{ vars.BE_OPENAPI_URL }}
+        run: |
+          if [ -z "$BE_OPENAPI_URL" ]; then
+            echo "Repository variable BE_OPENAPI_URL is required"
+            exit 1
+          fi
+          npm run openapi:sync -- "$BE_OPENAPI_URL"
+
+      - name: Generate API types
+        run: npm run openapi:types
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore: sync openapi contract'
+          title: 'chore: sync openapi contract'
+          body: |
+            Auto-generated PR:
+            - synced `openapi/openapi.json`
+            - regenerated `src/shared/api/generated/openapi-types.ts`
+          branch: chore/openapi-sync
+          delete-branch: true
