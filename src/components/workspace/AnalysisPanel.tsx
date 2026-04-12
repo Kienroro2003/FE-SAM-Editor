@@ -12,6 +12,7 @@ import type { CodeCoverageDecoration, CoverageTone } from '../../shared/utils/co
 import { isCoverageRunFailed, isCoverageRunSucceeded, toCoverageTone } from '../../shared/utils/coverage';
 import { resolveApiErrorMessage } from '../../shared/utils/errors';
 import { LoadingState } from '../common/LoadingState';
+import { AiSuggestTestsPanel } from '../ai-suggest/AiSuggestTestsPanel';
 import { CfgGraph } from './CfgGraph';
 import { FunctionList, type FunctionListItem } from './FunctionList';
 
@@ -297,6 +298,7 @@ export function AnalysisPanel({
   const [graphError, setGraphError] = useState('');
   const [isGraphExpanded, setIsGraphExpanded] = useState(false);
   const [isRawRunDetailsOpen, setIsRawRunDetailsOpen] = useState(false);
+  const [autoSuggestRunId, setAutoSuggestRunId] = useState<number | null>(null);
 
   useEffect(() => {
     setAnalysisSummary(null);
@@ -312,6 +314,7 @@ export function AnalysisPanel({
     setGraphError('');
     setIsGraphExpanded(false);
     setIsRawRunDetailsOpen(false);
+    setAutoSuggestRunId(null);
   }, [projectId, selectedFilePath]);
 
   const isJavaFile = file?.language === 'JAVA';
@@ -396,6 +399,7 @@ export function AnalysisPanel({
     setSelectedFunctionCfg(null);
     setCfgMode('plain');
     setIsRawRunDetailsOpen(false);
+    setAutoSuggestRunId(null);
 
     try {
       const response = await analysisApi.analyzeJavaFile(projectId, selectedFilePath);
@@ -443,6 +447,7 @@ export function AnalysisPanel({
       setCoverageSummary(nextSummary);
       setActiveCoverageRunId(nextCoverageRunId);
       setIsRawRunDetailsOpen(isCoverageRunFailed(nextSummary.status));
+      setAutoSuggestRunId(Date.now());
 
       if (nextSummary.functions.length === 0) {
         return;
@@ -614,6 +619,16 @@ export function AnalysisPanel({
             </div>
           )}
         </section>
+      )}
+
+      {coverageSummary && (
+        <AiSuggestTestsPanel
+          sourceFilePath={selectedFilePath}
+          sourceFile={file}
+          coverageFunctions={coverageSummary.functions}
+          disabled={isFileLoading || isRunningCoverage}
+          autoSuggestRunId={autoSuggestRunId}
+        />
       )}
 
       {panelError && <div className="feedback error analysis-feedback">{panelError}</div>}

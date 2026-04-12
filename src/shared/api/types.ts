@@ -129,6 +129,23 @@ export interface JavaFileCoverageResponse {
   functions: CoverageFunctionSummaryResponse[];
 }
 
+export interface AiCoverageResult {
+  coveredLines: number[];
+  uncoveredLines: number[];
+  coveredBranches: string[];
+  uncoveredBranches: string[];
+  coveredFunctions: string[];
+  uncoveredFunctions: string[];
+  coveragePercentage: number;
+}
+
+export interface AiSuggestTestsRequest {
+  sourceCode: string;
+  testCode: string;
+  coverageResult: AiCoverageResult;
+  language: string;
+}
+
 export interface AnalysisGraphNodeResponse {
   id: string;
   type: string;
