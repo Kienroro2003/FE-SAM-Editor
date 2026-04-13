@@ -31,6 +31,8 @@ interface LoadFunctionCfgOptions {
   coverageOverlayAvailable?: boolean;
 }
 
+const SUPPORTED_ANALYSIS_LANGUAGES = new Set(['JAVA', 'JAVASCRIPT', 'TYPESCRIPT', 'JS', 'TS', 'JSX', 'TSX']);
+
 function formatLineRange(startLine: number, endLine: number): string {
   return startLine === endLine ? `L${startLine}` : `L${startLine}-${endLine}`;
 }
@@ -317,7 +319,9 @@ export function AnalysisPanel({
     setAutoSuggestRunId(null);
   }, [projectId, selectedFilePath]);
 
-  const isJavaFile = file?.language === 'JAVA';
+  const normalizedLanguage = file?.language?.trim().toUpperCase() ?? null;
+  const isJavaFile = normalizedLanguage === 'JAVA';
+  const isAnalysisSupportedFile = normalizedLanguage !== null && SUPPORTED_ANALYSIS_LANGUAGES.has(normalizedLanguage);
   const hasSelectedFile = Boolean(selectedFilePath);
   const functionListMode = coverageSummary ? 'coverage' : 'analysis';
   const displayedFunctions = useMemo<FunctionListItem[]>(() => {
@@ -402,7 +406,7 @@ export function AnalysisPanel({
     setAutoSuggestRunId(null);
 
     try {
-      const response = await analysisApi.analyzeJavaFile(projectId, selectedFilePath);
+      const response = await analysisApi.analyzeFile(projectId, selectedFilePath);
       const nextSummary = normalizeAnalysisSummary(response.data);
       setAnalysisSummary(nextSummary);
 
@@ -500,12 +504,16 @@ export function AnalysisPanel({
         <div>
           <h2>Analysis</h2>
           <p className="panel-muted panel-description">
-            Parse Java source, run coverage, and inspect CFG with an inline coverage overlay when it is available.
+            Parse supported source files, inspect CFG, and run inline coverage overlays for Java when available.
           </p>
         </div>
 
         <div className="analysis-toolbar-actions">
-          <button type="button" onClick={handleAnalyze} disabled={!projectId || !isJavaFile || isFileLoading || isAnalyzing || isRunningCoverage}>
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={!projectId || !isAnalysisSupportedFile || isFileLoading || isAnalyzing || isRunningCoverage}
+          >
             {isAnalyzing ? (
               <span className="button-loading-content">
                 <span className="loading-spinner" aria-hidden="true" />
@@ -515,7 +523,13 @@ export function AnalysisPanel({
               analyzeButtonLabel
             )}
           </button>
-          <button type="button" className="button-secondary" onClick={handleRunCoverage} disabled={runCoverageDisabled}>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={handleRunCoverage}
+            disabled={runCoverageDisabled}
+            title={!isJavaFile && isAnalysisSupportedFile ? 'Coverage currently supports Java files only.' : undefined}
+          >
             {isRunningCoverage ? (
               <span className="button-loading-content">
                 <span className="loading-spinner" aria-hidden="true" />
@@ -533,7 +547,7 @@ export function AnalysisPanel({
           {selectedFilePath ?? 'No file selected'}
         </div>
         <div className="analysis-status-row">
-          <span className={`analysis-pill ${isJavaFile ? 'accent' : ''}`}>{file?.language ?? 'N/A'}</span>
+          <span className={`analysis-pill ${isAnalysisSupportedFile ? 'accent' : ''}`}>{file?.language ?? 'N/A'}</span>
           {analysisSummary && (
             <span className={`analysis-pill ${analysisSummary.cached ? 'muted' : 'success'}`}>
               {analysisSummary.cached ? 'Cached analysis' : 'Fresh analysis'}
@@ -636,11 +650,11 @@ export function AnalysisPanel({
 
       {isFileLoading && <LoadingState message="Loading selected file..." className="analysis-loading" />}
       {!isFileLoading && !hasSelectedFile && <div className="analysis-empty-state">Select a file to analyze</div>}
-      {!isFileLoading && hasSelectedFile && file && !isJavaFile && (
-        <div className="analysis-empty-state">Analysis and coverage currently support JAVA files only</div>
+      {!isFileLoading && hasSelectedFile && file && !isAnalysisSupportedFile && (
+        <div className="analysis-empty-state">Analysis currently supports Java, JavaScript, and TypeScript files only</div>
       )}
 
-      {!isFileLoading && hasSelectedFile && isJavaFile && (
+      {!isFileLoading && hasSelectedFile && isAnalysisSupportedFile && (
         <div className={`analysis-body ${isGraphExpanded ? 'graph-expanded' : ''}`}>
           {!isGraphExpanded && (
             <section className="analysis-section">
@@ -662,7 +676,7 @@ export function AnalysisPanel({
                   }
                 />
               ) : (
-                <div className="analysis-empty-state compact">Run analysis or coverage to inspect methods</div>
+                <div className="analysis-empty-state compact">Run analysis or coverage to inspect functions</div>
               )}
             </section>
           )}
