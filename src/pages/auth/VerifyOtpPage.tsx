@@ -75,7 +75,7 @@ export function VerifyOtpPage() {
   return (
     <AuthShell
       title="Verify OTP"
-      subtitle="Nhập email và mã OTP để kích hoạt phiên đăng nhập."
+      subtitle="Enter the OTP sent to your email to finish sign in."
       message={message}
       error={error}
       loadingText={
@@ -86,22 +86,24 @@ export function VerifyOtpPage() {
             : undefined
       }
     >
-      <form className="auth-form auth-form-single" onSubmit={handleVerifyOtp}>
-        <h2>Verify OTP</h2>
+      <form className="auth-form auth-form-otp" onSubmit={handleVerifyOtp}>
         <input
+          className="auth-input"
           placeholder="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
         />
         <input
-          placeholder="6-digit OTP"
+          className="auth-input"
+          inputMode="numeric"
+          placeholder="OTP code"
           value={otpCode}
           onChange={(event) => setOtpCode(event.target.value)}
           required
         />
 
-        <button disabled={busyAction !== null || !canSubmitVerify} type="submit">
+        <button className="auth-primary-button" disabled={busyAction !== null || !canSubmitVerify} type="submit">
           {busyAction === 'verifyOtp' ? (
             <span className="button-loading-content">
               <span className="loading-spinner" aria-hidden="true" />
@@ -113,6 +115,7 @@ export function VerifyOtpPage() {
         </button>
 
         <button
+          className="auth-ghost-button"
           disabled={busyAction !== null || email.trim().length === 0}
           type="button"
           onClick={handleResendOtp}

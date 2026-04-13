@@ -25,7 +25,11 @@ export function RegisterPage() {
     setError('');
 
     try {
-      const response = await authApi.register({ email, fullName, password });
+      const response = await authApi.register({
+        email: email.trim(),
+        fullName: fullName.trim(),
+        password,
+      });
       const successMessage = response.data.message || 'OTP has been sent to your email.';
       navigate(`/auth/verify-otp?email=${encodeURIComponent(email.trim())}`, {
         state: { message: successMessage },
@@ -39,26 +43,26 @@ export function RegisterPage() {
 
   return (
     <AuthShell
-      title="Register"
-      subtitle="Tạo tài khoản mới để nhận OTP xác thực qua email."
       error={error}
       loadingText={isSubmitting ? 'Creating account and sending OTP...' : undefined}
     >
-      <form className="auth-form auth-form-single" onSubmit={handleRegister}>
-        <h2>Register</h2>
+      <form className="auth-form auth-form-register" onSubmit={handleRegister}>
         <input
+          className="auth-input"
           placeholder="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
         />
         <input
+          className="auth-input"
           placeholder="Full name"
           value={fullName}
           onChange={(event) => setFullName(event.target.value)}
           required
         />
         <input
+          className="auth-input"
           placeholder="Password"
           type="password"
           value={password}
@@ -66,7 +70,7 @@ export function RegisterPage() {
           required
         />
 
-        <button disabled={isSubmitting} type="submit">
+        <button className="auth-primary-button" disabled={isSubmitting} type="submit">
           {isSubmitting ? (
             <span className="button-loading-content">
               <span className="loading-spinner" aria-hidden="true" />

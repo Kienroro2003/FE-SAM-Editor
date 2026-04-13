@@ -26,6 +26,28 @@ export async function streamAiSuggestedTests(
 ): Promise<void> {
   const authHeader = createAuthHeader();
 
+  const requestDebugId = `ai-suggest-${Date.now()}`;
+  const sourceLength = payload.sourceCode?.length ?? 0;
+  const testLength = payload.testCode?.length ?? 0;
+  const coverage = payload.coverageResult;
+
+  console.info('[AI Suggest] Request payload summary', {
+    requestDebugId,
+    endpoint: AI_SUGGEST_ENDPOINT,
+    hasAuthHeader: Boolean(authHeader),
+    language: payload.language,
+    sourceCodeLength: sourceLength,
+    testCodeLength: testLength,
+    coveragePercentage: coverage.coveragePercentage,
+    coveredLinesCount: coverage.coveredLines.length,
+    uncoveredLinesCount: coverage.uncoveredLines.length,
+    coveredBranchesCount: coverage.coveredBranches.length,
+    uncoveredBranchesCount: coverage.uncoveredBranches.length,
+    coveredFunctionsCount: coverage.coveredFunctions.length,
+    uncoveredFunctionsCount: coverage.uncoveredFunctions.length,
+    isTestCodeEmptyAfterTrim: payload.testCode.trim().length === 0,
+  });
+
   const response = await fetch(AI_SUGGEST_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -38,13 +60,27 @@ export async function streamAiSuggestedTests(
   });
 
   if (!response.ok) {
-    const fallback = `AI suggest failed (${response.status})`;
+    const fallback = `AI suggest failed (${response.status}${response.statusText ? ` ${response.statusText}` : ''})`;
+
     try {
-      const errorText = (await response.text()).trim();
-      callbacks.onError(errorText || fallback);
+      const rawError = (await response.text()).trim();
+      if (!rawError) {
+        callbacks.onError(fallback);
+        callbacks.onDone();
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(rawError) as { message?: string; error?: string; details?: string };
+        const detailedMessage = parsed.message || parsed.error || parsed.details || rawError;
+        callbacks.onError(`${fallback}: ${detailedMessage}`);
+      } catch {
+        callbacks.onError(`${fallback}: ${rawError}`);
+      }
     } catch {
       callbacks.onError(fallback);
     }
+
     callbacks.onDone();
     return;
   }

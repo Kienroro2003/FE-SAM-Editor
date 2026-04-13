@@ -36,7 +36,7 @@ export function LoginPage() {
     setMessage('');
 
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login({ email: email.trim(), password });
       setSession(response.data);
       navigate('/workspace');
     } catch (err) {
@@ -62,8 +62,6 @@ export function LoginPage() {
 
   return (
     <AuthShell
-      title="Login"
-      subtitle="Đăng nhập bằng email/password hoặc GitHub để vào workspace."
       message={message}
       error={error}
       loadingText={
@@ -74,15 +72,16 @@ export function LoginPage() {
             : undefined
       }
     >
-      <form className="auth-form auth-form-single" onSubmit={handleLogin}>
-        <h2>Login</h2>
+      <form className="auth-form auth-form-login" onSubmit={handleLogin}>
         <input
-          placeholder="Email"
+          className="auth-input"
+          placeholder="Username or Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
         />
         <input
+          className="auth-input"
           placeholder="Password"
           type="password"
           value={password}
@@ -90,7 +89,7 @@ export function LoginPage() {
           required
         />
 
-        <button disabled={busyAction !== null || !canSubmitLogin} type="submit">
+        <button className="auth-primary-button" disabled={busyAction !== null || !canSubmitLogin} type="submit">
           {busyAction === 'login' ? (
             <span className="button-loading-content">
               <span className="loading-spinner" aria-hidden="true" />
@@ -101,7 +100,12 @@ export function LoginPage() {
           )}
         </button>
 
-        <button disabled={busyAction !== null} type="button" className="button-github" onClick={handleGithubLogin}>
+        <button
+          className="auth-ghost-button"
+          disabled={busyAction !== null}
+          type="button"
+          onClick={handleGithubLogin}
+        >
           {busyAction === 'github' ? (
             <span className="button-loading-content">
               <span className="loading-spinner" aria-hidden="true" />

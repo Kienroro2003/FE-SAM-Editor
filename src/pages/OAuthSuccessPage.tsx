@@ -35,6 +35,7 @@ export function OAuthSuccessPage() {
     return (
       <main className="oauth-page">
         <section className="oauth-card">
+          <p className="oauth-brand">SAM Editor</p>
           <h1>GitHub Login Failed</h1>
           <p>{errorMessage || 'Missing token in callback URL. Please retry.'}</p>
           <Link to="/auth/login">Back to Login</Link>
@@ -46,6 +47,7 @@ export function OAuthSuccessPage() {
   return (
     <main className="oauth-page">
       <section className="oauth-card">
+        <p className="oauth-brand">SAM Editor</p>
         <h1>Signing in...</h1>
         <p className="button-loading-content">
           <span className="loading-spinner" aria-hidden="true" />

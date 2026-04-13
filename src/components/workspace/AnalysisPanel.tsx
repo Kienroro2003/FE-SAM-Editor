@@ -623,6 +623,7 @@ export function AnalysisPanel({
 
       {coverageSummary && (
         <AiSuggestTestsPanel
+          projectId={projectId}
           sourceFilePath={selectedFilePath}
           sourceFile={file}
           coverageFunctions={coverageSummary.functions}
