@@ -6,6 +6,7 @@ React + Vite + TypeScript frontend for existing BE auth/workspace APIs.
 
 - Auth flows: register, verify OTP, resend OTP, login, GitHub OAuth redirect, refresh token, logout, logout-all.
 - Workspace flows: import GitHub repo, import ZIP folder, list workspaces, render file tree, open file content in read-only Monaco editor.
+- AI suggest tests: after running coverage, FE sends uncovered coverage context to `/api/ai/suggest-tests` and renders Groq suggestions.
 - Token handling with automatic access-token refresh on `401`.
 - OpenAPI sync pipeline from BE endpoint `/v3/api-docs`.
 
@@ -25,6 +26,8 @@ Copy `.env.example` to `.env.local` if you need custom values.
 
 - `VITE_API_BASE_URL` default: `/api`
 - `VITE_API_ORIGIN` default: `http://localhost:8080`
+
+For AI suggest tests to work, backend must have `GROQ_API_KEY` configured.
 
 ## OpenAPI contract sync
 

@@ -125,6 +125,7 @@ export async function streamAiSuggestedTests(
       headers: {
         Accept: 'text/event-stream',
       },
+      withCredentials: true,
       responseType: 'text',
       signal,
     });
