@@ -116,6 +116,10 @@ function normalizeCoverageSummary(summary: JavaFileCoverageResponse): JavaFileCo
     stderr: summary.stderr ?? null,
     startedAt: summary.startedAt ?? null,
     completedAt: summary.completedAt ?? null,
+    coveredLines: summary.coveredLines ?? [],
+    uncoveredLines: summary.uncoveredLines ?? [],
+    coveredBranches: summary.coveredBranches ?? [],
+    uncoveredBranches: summary.uncoveredBranches ?? [],
     functions: (summary.functions ?? []).map(normalizeCoverageFunction),
   };
 }
@@ -451,7 +455,7 @@ export function AnalysisPanel({
       setCoverageSummary(nextSummary);
       setActiveCoverageRunId(nextCoverageRunId);
       setIsRawRunDetailsOpen(isCoverageRunFailed(nextSummary.status));
-      setAutoSuggestRunId(Date.now());
+      setAutoSuggestRunId(isCoverageRunSucceeded(nextSummary.status) ? Date.now() : null);
 
       if (nextSummary.functions.length === 0) {
         return;
@@ -640,7 +644,7 @@ export function AnalysisPanel({
           projectId={projectId}
           sourceFilePath={selectedFilePath}
           sourceFile={file}
-          coverageFunctions={coverageSummary.functions}
+          coverageSummary={coverageSummary}
           disabled={isFileLoading || isRunningCoverage}
           autoSuggestRunId={autoSuggestRunId}
         />

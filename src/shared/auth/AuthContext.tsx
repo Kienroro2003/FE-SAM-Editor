@@ -45,17 +45,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearSession = useCallback(() => {
     clearAuthTokens();
+    setTokens(null);
     setProfile(null);
     setIsProfileLoading(false);
   }, []);
 
   const setSession = useCallback((payload: AuthResponse) => {
-    setProfile(null);
-    setAuthTokens({
+    const nextTokens: AuthTokens = {
       accessToken: payload.accessToken,
       refreshToken: payload.refreshToken,
       tokenType: payload.tokenType || 'Bearer',
-    });
+    };
+
+    setProfile(null);
+    setAuthTokens(nextTokens);
+    setTokens(nextTokens);
   }, []);
 
   const refreshProfile = useCallback(async () => {

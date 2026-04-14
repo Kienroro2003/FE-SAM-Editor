@@ -1,17 +1,9 @@
+import { AxiosError } from 'axios';
 import { getAuthTokens } from '../storage/tokenStorage';
+import { httpClient } from './httpClient';
 import type { AiSuggestTestsRequest } from './types';
 
-const AI_SUGGEST_ENDPOINT = '/api/ai/suggest-tests';
-
-function createAuthHeader(): string | null {
-  const tokens = getAuthTokens();
-  if (!tokens?.accessToken) {
-    return null;
-  }
-
-  const tokenType = tokens.tokenType?.trim() || 'Bearer';
-  return `${tokenType} ${tokens.accessToken}`;
-}
+const AI_SUGGEST_ENDPOINT = '/ai/suggest-tests';
 
 export interface AiSuggestTestsStreamCallbacks {
   onToken: (chunk: string) => void;
@@ -19,12 +11,92 @@ export interface AiSuggestTestsStreamCallbacks {
   onDone: () => void;
 }
 
+function parseSsePayload(raw: string, callbacks: AiSuggestTestsStreamCallbacks): void {
+  const lines = raw.split(/\r?\n/);
+  let eventName = '';
+  let dataBuffer = '';
+  let hasTokenEvent = false;
+
+  const flushEvent = () => {
+    if (!eventName) {
+      return;
+    }
+
+    const eventData = dataBuffer.trimEnd();
+    if (eventName === 'token' && eventData) {
+      callbacks.onToken(eventData);
+      hasTokenEvent = true;
+    }
+
+    eventName = '';
+    dataBuffer = '';
+  };
+
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim();
+      continue;
+    }
+
+    if (line.startsWith('data:')) {
+      const dataPart = line.slice(5).trimStart();
+      dataBuffer = dataBuffer.length > 0 ? `${dataBuffer}\n${dataPart}` : dataPart;
+      continue;
+    }
+
+    if (line.trim() === '') {
+      flushEvent();
+    }
+  }
+
+  flushEvent();
+
+  if (!hasTokenEvent) {
+    const fallback = raw.trim();
+    if (fallback) {
+      callbacks.onToken(fallback);
+    }
+  }
+}
+
+function resolveAxiosErrorMessage(error: unknown): string {
+  if (error instanceof AxiosError) {
+    if (error.code === 'ERR_CANCELED') {
+      return '';
+    }
+
+    const status = error.response?.status;
+    const statusText = error.response?.statusText;
+    if (status === 401) {
+      return 'Session expired or unauthorized. Please log in again.';
+    }
+
+    const fallback = `AI suggest failed (${status ?? 'unknown'}${statusText ? ` ${statusText}` : ''})`;
+    const responseData = error.response?.data;
+
+    if (typeof responseData === 'string' && responseData.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(responseData) as { message?: string; error?: string; details?: string };
+        const detailedMessage = parsed.message || parsed.error || parsed.details || responseData;
+        return `${fallback}: ${detailedMessage}`;
+      } catch {
+        return `${fallback}: ${responseData}`;
+      }
+    }
+
+    return fallback;
+  }
+
+  return 'Unable to reach AI suggest service. Please try again.';
+}
+
 export async function streamAiSuggestedTests(
   payload: AiSuggestTestsRequest,
   callbacks: AiSuggestTestsStreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const authHeader = createAuthHeader();
+  const tokens = getAuthTokens();
+  const hasAuthHeader = Boolean(tokens?.accessToken);
 
   const requestDebugId = `ai-suggest-${Date.now()}`;
   const sourceLength = payload.sourceCode?.length ?? 0;
@@ -34,7 +106,7 @@ export async function streamAiSuggestedTests(
   console.info('[AI Suggest] Request payload summary', {
     requestDebugId,
     endpoint: AI_SUGGEST_ENDPOINT,
-    hasAuthHeader: Boolean(authHeader),
+    hasAuthHeader,
     language: payload.language,
     sourceCodeLength: sourceLength,
     testCodeLength: testLength,
@@ -48,99 +120,26 @@ export async function streamAiSuggestedTests(
     isTestCodeEmptyAfterTrim: payload.testCode.trim().length === 0,
   });
 
-  const response = await fetch(AI_SUGGEST_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      ...(authHeader ? { Authorization: authHeader } : {}),
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  try {
+    const response = await httpClient.post<string>(AI_SUGGEST_ENDPOINT, payload, {
+      headers: {
+        Accept: 'text/event-stream',
+      },
+      responseType: 'text',
+      signal,
+    });
 
-  if (!response.ok) {
-    const fallback = `AI suggest failed (${response.status}${response.statusText ? ` ${response.statusText}` : ''})`;
-
-    try {
-      const rawError = (await response.text()).trim();
-      if (!rawError) {
-        callbacks.onError(fallback);
-        callbacks.onDone();
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(rawError) as { message?: string; error?: string; details?: string };
-        const detailedMessage = parsed.message || parsed.error || parsed.details || rawError;
-        callbacks.onError(`${fallback}: ${detailedMessage}`);
-      } catch {
-        callbacks.onError(`${fallback}: ${rawError}`);
-      }
-    } catch {
-      callbacks.onError(fallback);
-    }
-
-    callbacks.onDone();
-    return;
-  }
-
-  if (!response.body) {
-    callbacks.onError('AI suggest stream is unavailable.');
-    callbacks.onDone();
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let eventName = '';
-
-  const flushEvent = () => {
-    if (!eventName) {
+    const rawBody = typeof response.data === 'string' ? response.data : '';
+    if (!rawBody.trim()) {
+      callbacks.onError('AI suggest stream is unavailable.');
       return;
     }
 
-    const eventData = buffer.trimEnd();
-    if (eventName === 'token' && eventData) {
-      callbacks.onToken(eventData);
-    }
-
-    eventName = '';
-    buffer = '';
-  };
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        flushEvent();
-        break;
-      }
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split(/\r?\n/);
-
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          eventName = line.slice(6).trim();
-          continue;
-        }
-
-        if (line.startsWith('data:')) {
-          const dataPart = line.slice(5).trimStart();
-          buffer = buffer.length > 0 ? `${buffer}\n${dataPart}` : dataPart;
-          continue;
-        }
-
-        if (line.trim() === '') {
-          flushEvent();
-        }
-      }
-    }
+    parseSsePayload(rawBody, callbacks);
   } catch (error) {
-    if ((error as Error).name !== 'AbortError') {
-      callbacks.onError('AI suggest stream interrupted. Please try again.');
+    const message = resolveAxiosErrorMessage(error);
+    if (message) {
+      callbacks.onError(message);
     }
   } finally {
     callbacks.onDone();

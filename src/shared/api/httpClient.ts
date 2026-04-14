@@ -16,7 +16,7 @@ export const httpClient = axios.create({
 
 let refreshInFlight: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   const currentTokens = getAuthTokens();
   if (!currentTokens?.refreshToken) {
     clearAuthTokens();

@@ -126,6 +126,10 @@ export interface JavaFileCoverageResponse {
   stderr: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  coveredLines: number[];
+  uncoveredLines: number[];
+  coveredBranches: string[];
+  uncoveredBranches: string[];
   functions: CoverageFunctionSummaryResponse[];
 }
 

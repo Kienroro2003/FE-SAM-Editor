@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { workspaceApi } from '../../shared/api/workspaceApi';
-import type { CoverageFunctionSummaryResponse, WorkspaceFileContentResponse } from '../../shared/api/types';
+import type { JavaFileCoverageResponse, WorkspaceFileContentResponse } from '../../shared/api/types';
 import { useAiSuggestTestsStream } from '../../shared/hooks/useAiSuggestTestsStream';
-import { resolveCoverageStatus } from '../../shared/utils/coverage';
+import { isCoverageRunSucceeded } from '../../shared/utils/coverage';
 
 interface AiSuggestTestsPanelProps {
   projectId: number | null;
   sourceFilePath: string | null;
   sourceFile: WorkspaceFileContentResponse | null;
-  coverageFunctions: CoverageFunctionSummaryResponse[];
+  coverageSummary: JavaFileCoverageResponse;
   disabled: boolean;
   autoSuggestRunId: number | null;
-}
-
-function uniqueSorted(numbers: number[]): number[] {
-  return [...new Set(numbers)].sort((left, right) => left - right);
 }
 
 function mapLanguage(language: string | null | undefined): string {
@@ -30,7 +26,7 @@ function mapLanguage(language: string | null | undefined): string {
 }
 
 function toWorkspacePath(path: string): string {
-  return path.replaceAll('\\', '/');
+  return path.replace(/\\/g, '/');
 }
 
 function resolveTestPathCandidates(sourcePath: string): string[] {
@@ -101,66 +97,75 @@ export function AiSuggestTestsPanel({
   projectId,
   sourceFilePath,
   sourceFile,
-  coverageFunctions,
+  coverageSummary,
   disabled,
   autoSuggestRunId,
 }: AiSuggestTestsPanelProps) {
   const { suggestionText, suggestError, isSuggesting, startSuggesting, stopSuggesting } = useAiSuggestTestsStream();
   const lastAutoRunIdRef = useRef<number | null>(null);
+  const coverageFunctions = coverageSummary.functions;
+  const coverageSucceeded = isCoverageRunSucceeded(coverageSummary.status);
 
-  const { uncoveredFunctions, coveredFunctions, uncoveredLines, coveredLines } = useMemo(() => {
+  const { uncoveredFunctions, coveredFunctions } = useMemo(() => {
     const nextUncoveredFunctions: string[] = [];
     const nextCoveredFunctions: string[] = [];
-    const missedLines: number[] = [];
-    const hitLines: number[] = [];
 
     coverageFunctions.forEach((item) => {
-      const status = resolveCoverageStatus(item);
       const signature = item.signature?.trim() || item.functionName;
+      const coveredLineCount = item.coveredLineCount ?? 0;
+      const missedLineCount = item.missedLineCount ?? 0;
+      const coveredBranchCount = item.coveredBranchCount ?? 0;
+      const missedBranchCount = item.missedBranchCount ?? 0;
 
-      if (status === 'MISSED' || status === 'PARTIAL') {
+      if (missedLineCount > 0 || missedBranchCount > 0) {
         nextUncoveredFunctions.push(signature);
       }
-      if (status === 'COVERED' || status === 'PARTIAL') {
+      if (coveredLineCount > 0 || coveredBranchCount > 0) {
         nextCoveredFunctions.push(signature);
-      }
-
-      const start = Math.min(item.startLine, item.endLine);
-      const end = Math.max(item.startLine, item.endLine);
-
-      if (status === 'MISSED' || status === 'PARTIAL') {
-        for (let line = start; line <= end; line += 1) {
-          missedLines.push(line);
-        }
-      }
-
-      if (status === 'COVERED' || status === 'PARTIAL') {
-        for (let line = start; line <= end; line += 1) {
-          hitLines.push(line);
-        }
       }
     });
 
     return {
       uncoveredFunctions: [...new Set(nextUncoveredFunctions)],
       coveredFunctions: [...new Set(nextCoveredFunctions)],
-      uncoveredLines: uniqueSorted(missedLines),
-      coveredLines: uniqueSorted(hitLines),
     };
   }, [coverageFunctions]);
 
+  const coveredLines = coverageSummary.coveredLines ?? [];
+  const uncoveredLines = coverageSummary.uncoveredLines ?? [];
+  const coveredBranches = coverageSummary.coveredBranches ?? [];
+  const uncoveredBranches = coverageSummary.uncoveredBranches ?? [];
+
   const coveragePercentage = useMemo(() => {
+    const coveredUnits = coveredLines.length + coveredBranches.length;
+    const uncoveredUnits = uncoveredLines.length + uncoveredBranches.length;
+    const totalUnits = coveredUnits + uncoveredUnits;
+
+    if (totalUnits > 0) {
+      return Math.round((coveredUnits / totalUnits) * 100);
+    }
+
     if (coverageFunctions.length === 0) {
       return 0;
     }
 
     const total = coverageFunctions.length;
-    const covered = coverageFunctions.filter((item) => resolveCoverageStatus(item) === 'COVERED').length;
+    const covered = coverageFunctions.filter(
+      (item) => (item.coveredLineCount ?? 0) > 0 || (item.coveredBranchCount ?? 0) > 0,
+    ).length;
     return Math.round((covered / total) * 100);
-  }, [coverageFunctions]);
+  }, [coverageFunctions, coveredBranches.length, coveredLines.length, uncoveredBranches.length, uncoveredLines.length]);
+
+  const hasCoverageGap = uncoveredLines.length > 0 || uncoveredBranches.length > 0 || uncoveredFunctions.length > 0;
 
   const canSuggest =
-    !disabled && Boolean(projectId) && Boolean(sourceFilePath) && Boolean(sourceFile?.content) && coverageFunctions.length > 0;
+    !disabled &&
+    coverageSucceeded &&
+    hasCoverageGap &&
+    Boolean(projectId) &&
+    Boolean(sourceFilePath) &&
+    Boolean(sourceFile?.content) &&
+    coverageFunctions.length > 0;
 
   const handleSuggest = useCallback(async () => {
     if (!canSuggest || !sourceFile || !sourceFilePath || !projectId) {
@@ -181,8 +186,8 @@ export function AiSuggestTestsPanel({
       coverageResult: {
         coveredLines,
         uncoveredLines,
-        coveredBranches: [],
-        uncoveredBranches: [],
+        coveredBranches,
+        uncoveredBranches,
         coveredFunctions,
         uncoveredFunctions,
         coveragePercentage,
@@ -192,12 +197,16 @@ export function AiSuggestTestsPanel({
     canSuggest,
     coveredFunctions,
     coveredLines,
+    coveredBranches,
     coveragePercentage,
+    coverageSucceeded,
+    hasCoverageGap,
     projectId,
     sourceFile,
     sourceFilePath,
     startSuggesting,
     uncoveredFunctions,
+    uncoveredBranches,
     uncoveredLines,
   ]);
 
@@ -238,7 +247,17 @@ export function AiSuggestTestsPanel({
         <span className="analysis-pill">{uncoveredFunctions.length} needs tests</span>
       </div>
 
-      {!canSuggest && <div className="analysis-empty-state compact">Run coverage on a source file before using AI suggest.</div>}
+      {!coverageSucceeded && (
+        <div className="analysis-empty-state compact">AI suggest is available after a successful coverage run.</div>
+      )}
+
+      {coverageSucceeded && !hasCoverageGap && (
+        <div className="analysis-empty-state compact">Coverage is already complete. No AI suggestions needed.</div>
+      )}
+
+      {!canSuggest && coverageSucceeded && hasCoverageGap && (
+        <div className="analysis-empty-state compact">Run coverage on a source file before using AI suggest.</div>
+      )}
 
       {suggestError && <div className="feedback error analysis-feedback">{suggestError}</div>}
 
