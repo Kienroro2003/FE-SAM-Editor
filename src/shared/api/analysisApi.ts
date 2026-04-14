@@ -14,6 +14,18 @@ export const analysisApi = {
     });
   },
 
+  runCoverage(projectId: number, path: string) {
+    return httpClient.post<JavaFileCoverageResponse>(`/workspaces/${projectId}/analysis/coverage`, null, {
+      params: { path },
+    });
+  },
+
+  getLatestCoverage(projectId: number, path: string) {
+    return httpClient.get<JavaFileCoverageResponse>(`/workspaces/${projectId}/analysis/coverage/latest`, {
+      params: { path },
+    });
+  },
+
   runJavaCoverage(projectId: number, path: string) {
     return httpClient.post<JavaFileCoverageResponse>(`/workspaces/${projectId}/analysis/java/coverage`, null, {
       params: { path },

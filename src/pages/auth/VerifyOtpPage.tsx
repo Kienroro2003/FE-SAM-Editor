@@ -15,7 +15,7 @@ export function VerifyOtpPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
-  const { isAuthenticated, setSession } = useAuth();
+  const { isAuthenticated, authError, clearAuthError, setSession } = useAuth();
 
   const initialEmail = params.get('email') || '';
   const state = (location.state as VerifyLocationState | null) ?? null;
@@ -31,6 +31,8 @@ export function VerifyOtpPage() {
     [email, otpCode],
   );
 
+  const displayedError = error || authError;
+
   if (isAuthenticated) {
     return <Navigate to="/workspace" replace />;
   }
@@ -38,6 +40,7 @@ export function VerifyOtpPage() {
   const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusyAction('verifyOtp');
+    clearAuthError();
     setError('');
     setMessage('');
 
@@ -59,6 +62,7 @@ export function VerifyOtpPage() {
     }
 
     setBusyAction('resendOtp');
+    clearAuthError();
     setError('');
     setMessage('');
 
@@ -77,7 +81,7 @@ export function VerifyOtpPage() {
       title="Verify OTP"
       subtitle="Nhập email và mã OTP để kích hoạt phiên đăng nhập."
       message={message}
-      error={error}
+      error={displayedError}
       loadingText={
         busyAction === 'verifyOtp'
           ? 'Verifying OTP and creating your session...'
@@ -91,13 +95,23 @@ export function VerifyOtpPage() {
         <input
           placeholder="Email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setEmail(event.target.value);
+          }}
           required
         />
         <input
           placeholder="6-digit OTP"
           value={otpCode}
-          onChange={(event) => setOtpCode(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setOtpCode(event.target.value);
+          }}
           required
         />
 

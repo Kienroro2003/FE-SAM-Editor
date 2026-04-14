@@ -33,7 +33,7 @@ interface CodeFocusRequest {
 
 export function WorkspacePage() {
   const navigate = useNavigate();
-  const { tokens, profile, isProfileLoading, clearSession, setSession } = useAuth();
+  const { tokens, profile, authError, isProfileLoading, clearAuthError, clearSession, setSession } = useAuth();
 
   const [workspaces, setWorkspaces] = useState<WorkspaceSummaryResponse[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -73,7 +73,8 @@ export function WorkspacePage() {
   const clearFeedback = useCallback(() => {
     setError('');
     setMessage('');
-  }, []);
+    clearAuthError();
+  }, [clearAuthError]);
 
   const clearCodeViewerState = useCallback(() => {
     setCodeFocusRequest(null);
@@ -435,7 +436,7 @@ export function WorkspacePage() {
       />
 
       {message && <div className="feedback success">{message}</div>}
-      {error && <div className="feedback error">{error}</div>}
+      {(error || authError) && <div className="feedback error">{error || authError}</div>}
 
       <DeleteWorkspaceModal
         candidate={deleteCandidate}

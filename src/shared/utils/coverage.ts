@@ -64,7 +64,11 @@ export function isCoverageRunSucceeded(status: string | null | undefined): boole
   return normalizeUpperCaseValue(status) === 'SUCCEEDED';
 }
 
+export function isCoverageRunNoTestsFound(status: string | null | undefined): boolean {
+  return normalizeUpperCaseValue(status) === 'NO_TESTS_FOUND';
+}
+
 export function isCoverageRunFailed(status: string | null | undefined): boolean {
   const normalized = normalizeUpperCaseValue(status);
-  return normalized === 'FAILED' || normalized === 'TIMED_OUT';
+  return normalized === 'FAILED' || normalized === 'TIMED_OUT' || normalized === 'NO_TESTS_FOUND';
 }

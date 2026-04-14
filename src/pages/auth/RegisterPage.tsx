@@ -7,13 +7,15 @@ import { resolveApiErrorMessage } from '../../shared/utils/errors';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authError, clearAuthError } = useAuth();
 
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const displayedError = error || authError;
 
   if (isAuthenticated) {
     return <Navigate to="/workspace" replace />;
@@ -22,6 +24,7 @@ export function RegisterPage() {
   const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
+    clearAuthError();
     setError('');
 
     try {
@@ -41,7 +44,7 @@ export function RegisterPage() {
     <AuthShell
       title="Register"
       subtitle="Tạo tài khoản mới để nhận OTP xác thực qua email."
-      error={error}
+      error={displayedError}
       loadingText={isSubmitting ? 'Creating account and sending OTP...' : undefined}
     >
       <form className="auth-form auth-form-single" onSubmit={handleRegister}>
@@ -49,20 +52,35 @@ export function RegisterPage() {
         <input
           placeholder="Email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setEmail(event.target.value);
+          }}
           required
         />
         <input
           placeholder="Full name"
           value={fullName}
-          onChange={(event) => setFullName(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setFullName(event.target.value);
+          }}
           required
         />
         <input
           placeholder="Password"
           type="password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setPassword(event.target.value);
+          }}
           required
         />
 

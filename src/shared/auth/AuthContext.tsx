@@ -1,3 +1,4 @@
+import axios from 'axios';
 import {
   createContext,
   useCallback,
@@ -15,14 +16,17 @@ import {
   getAuthTokens,
   setAuthTokens,
 } from '../storage/tokenStorage';
+import { resolveApiErrorMessage } from '../utils/errors';
 
 interface AuthContextValue {
   tokens: AuthTokens | null;
   profile: MeResponse | null;
+  authError: string;
   isAuthenticated: boolean;
   isProfileLoading: boolean;
   setSession: (payload: AuthResponse) => void;
   clearSession: () => void;
+  clearAuthError: () => void;
   refreshProfile: () => Promise<void>;
 }
 
@@ -31,6 +35,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [tokens, setTokens] = useState<AuthTokens | null>(() => getAuthTokens());
   const [profile, setProfile] = useState<MeResponse | null>(null);
+  const [authError, setAuthError] = useState('');
   const [isProfileLoading, setIsProfileLoading] = useState(false);
 
   useEffect(() => {
@@ -43,14 +48,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const clearAuthError = useCallback(() => {
+    setAuthError('');
+  }, []);
+
   const clearSession = useCallback(() => {
     clearAuthTokens();
     setProfile(null);
+    setAuthError('');
     setIsProfileLoading(false);
   }, []);
 
   const setSession = useCallback((payload: AuthResponse) => {
     setProfile(null);
+    setAuthError('');
     setAuthTokens({
       accessToken: payload.accessToken,
       refreshToken: payload.refreshToken,
@@ -70,8 +81,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.me();
       setProfile(response.data);
-    } catch {
+      setAuthError('');
+    } catch (error) {
       setProfile(null);
+
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        clearAuthTokens();
+        setTokens(null);
+        setAuthError('Session expired. Please login again.');
+      } else {
+        setAuthError(resolveApiErrorMessage(error, 'Unable to load profile'));
+      }
     } finally {
       setIsProfileLoading(false);
     }
@@ -89,13 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       tokens,
       profile,
+      authError,
       isAuthenticated: Boolean(tokens?.accessToken),
       isProfileLoading,
       setSession,
       clearSession,
+      clearAuthError,
       refreshProfile,
     }),
-    [tokens, profile, isProfileLoading, setSession, clearSession, refreshProfile],
+    [tokens, profile, authError, isProfileLoading, setSession, clearSession, clearAuthError, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

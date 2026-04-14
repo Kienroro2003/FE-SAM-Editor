@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { analysisApi } from '../../shared/api/analysisApi';
 import type {
   CoverageFunctionSummaryResponse,
@@ -9,7 +9,7 @@ import type {
   WorkspaceFileContentResponse,
 } from '../../shared/api/types';
 import type { CodeCoverageDecoration, CoverageTone } from '../../shared/utils/coverage';
-import { isCoverageRunFailed, isCoverageRunSucceeded, toCoverageTone } from '../../shared/utils/coverage';
+import { isCoverageRunFailed, isCoverageRunNoTestsFound, isCoverageRunSucceeded, toCoverageTone } from '../../shared/utils/coverage';
 import { resolveApiErrorMessage } from '../../shared/utils/errors';
 import { LoadingState } from '../common/LoadingState';
 import { AiSuggestTestsPanel } from '../ai-suggest/AiSuggestTestsPanel';
@@ -31,7 +31,22 @@ interface LoadFunctionCfgOptions {
   coverageOverlayAvailable?: boolean;
 }
 
+type CoverageDisplayState = 'not_run' | 'can_show' | 'showing';
+
+interface FileCoverageCacheEntry {
+  analysisSummary: JavaFileAnalysisResponse | null;
+  coverageSummary: JavaFileCoverageResponse | null;
+}
+
 const SUPPORTED_ANALYSIS_LANGUAGES = new Set(['JAVA', 'JAVASCRIPT', 'TYPESCRIPT', 'JS', 'TS', 'JSX', 'TSX']);
+const SUPPORTED_COVERAGE_LANGUAGES = new Set(['JAVA', 'JAVASCRIPT', 'TYPESCRIPT', 'JS', 'TS', 'JSX', 'TSX']);
+
+function buildCoverageCacheKey(projectId: number | null, selectedFilePath: string | null): string | null {
+  if (projectId == null || !selectedFilePath) {
+    return null;
+  }
+  return `${projectId}:${selectedFilePath}`;
+}
 
 function formatLineRange(startLine: number, endLine: number): string {
   return startLine === endLine ? `L${startLine}` : `L${startLine}-${endLine}`;
@@ -169,9 +184,73 @@ function toCoverageFunctionListItem(summary: CoverageFunctionSummaryResponse): F
   };
 }
 
+function toAnalysisSummaryFromCoverageSummary(summary: JavaFileCoverageResponse): JavaFileAnalysisResponse {
+  return {
+    projectId: summary.projectId,
+    path: summary.path,
+    language: summary.language,
+    cached: true,
+    functions: (summary.functions ?? []).map((item) => ({
+      functionId: item.functionId,
+      functionName: item.functionName,
+      signature: item.signature,
+      startLine: item.startLine,
+      endLine: item.endLine,
+      cyclomaticComplexity: item.cyclomaticComplexity,
+    })),
+  };
+}
+
+function toFallbackCoverageFunction(summary: FunctionAnalysisSummaryResponse): CoverageFunctionSummaryResponse {
+  return {
+    functionId: summary.functionId,
+    functionName: summary.functionName,
+    signature: summary.signature,
+    startLine: summary.startLine,
+    endLine: summary.endLine,
+    cyclomaticComplexity: summary.cyclomaticComplexity,
+    coverageStatus: null,
+    coveredLineCount: null,
+    missedLineCount: null,
+    coveredBranchCount: null,
+    missedBranchCount: null,
+  };
+}
+
+function toCoverageFunctionFromCfg(cfg: FunctionCfgResponse): CoverageFunctionSummaryResponse {
+  return {
+    functionId: cfg.functionId,
+    functionName: cfg.functionName,
+    signature: cfg.signature,
+    startLine: cfg.startLine,
+    endLine: cfg.endLine,
+    cyclomaticComplexity: cfg.cyclomaticComplexity,
+    coverageStatus: cfg.coverageStatus,
+    coveredLineCount: cfg.coveredLineCount,
+    missedLineCount: cfg.missedLineCount,
+    coveredBranchCount: cfg.coveredBranchCount,
+    missedBranchCount: cfg.missedBranchCount,
+  };
+}
+
+function hasCoverageFunctionMetrics(functions: CoverageFunctionSummaryResponse[]): boolean {
+  return functions.some(
+    (summary) =>
+      summary.coverageStatus != null
+      || summary.coveredLineCount != null
+      || summary.missedLineCount != null
+      || summary.coveredBranchCount != null
+      || summary.missedBranchCount != null,
+  );
+}
+
 function resolveCoverageFailureMessage(summary: JavaFileCoverageResponse | null): string {
   if (!summary) {
     return '';
+  }
+
+  if (isCoverageRunNoTestsFound(summary.status)) {
+    return 'No tests found for this project, so coverage was not generated.';
   }
 
   const stderrPreview = truncateOutput(summary.stderr);
@@ -184,6 +263,30 @@ function resolveCoverageFailureMessage(summary: JavaFileCoverageResponse | null)
   }
 
   return 'Coverage run failed. Open raw output for more details.';
+}
+
+function formatCoverageRunStatus(status: string | null): string {
+  if (!status) {
+    return 'UNKNOWN';
+  }
+
+  if (isCoverageRunNoTestsFound(status)) {
+    return 'No tests found';
+  }
+
+  if (status === 'TIMED_OUT') {
+    return 'Timed out';
+  }
+
+  return status;
+}
+
+function isCoverageUnavailableMessage(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  return normalized.includes('coverage cache is stale')
+    || normalized.includes('coverage run not found')
+    || normalized.includes('coverage run does not match requested file')
+    || normalized.includes('coverage overlay is not available');
 }
 
 function hasCoverageOverlay(summary: JavaFileCoverageResponse | null): boolean {
@@ -287,65 +390,187 @@ export function AnalysisPanel({
   onFocusCodeRange,
   onSetCodeCoverageDecorations,
 }: AnalysisPanelProps) {
+  const coverageCacheRef = useRef<Map<string, FileCoverageCacheEntry>>(new Map());
   const [analysisSummary, setAnalysisSummary] = useState<JavaFileAnalysisResponse | null>(null);
   const [coverageSummary, setCoverageSummary] = useState<JavaFileCoverageResponse | null>(null);
   const [activeCoverageRunId, setActiveCoverageRunId] = useState<number | null>(null);
+  const [coverageDisplayState, setCoverageDisplayState] = useState<CoverageDisplayState>('not_run');
   const [selectedFunctionId, setSelectedFunctionId] = useState<number | null>(null);
   const [selectedFunctionCfg, setSelectedFunctionCfg] = useState<FunctionCfgResponse | null>(null);
   const [cfgMode, setCfgMode] = useState<'plain' | 'coverage'>('plain');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRunningCoverage, setIsRunningCoverage] = useState(false);
   const [isLoadingCfg, setIsLoadingCfg] = useState(false);
+  const [isRestoringCoverage, setIsRestoringCoverage] = useState(false);
+  const [isShowingCoverage, setIsShowingCoverage] = useState(false);
   const [panelError, setPanelError] = useState('');
   const [graphError, setGraphError] = useState('');
   const [isGraphExpanded, setIsGraphExpanded] = useState(false);
   const [isRawRunDetailsOpen, setIsRawRunDetailsOpen] = useState(false);
   const [autoSuggestRunId, setAutoSuggestRunId] = useState<number | null>(null);
 
+  const normalizedLanguage = file?.language?.trim().toUpperCase() ?? null;
+  const isJavaFile = normalizedLanguage === 'JAVA';
+  const isAnalysisSupportedFile = normalizedLanguage !== null && SUPPORTED_ANALYSIS_LANGUAGES.has(normalizedLanguage);
+  const isCoverageSupportedFile = normalizedLanguage !== null && SUPPORTED_COVERAGE_LANGUAGES.has(normalizedLanguage);
+  const currentFileCacheKey = useMemo(() => buildCoverageCacheKey(projectId, selectedFilePath), [projectId, selectedFilePath]);
+  const currentFileCacheKeyRef = useRef<string | null>(currentFileCacheKey);
+  const hasSelectedFile = Boolean(selectedFilePath);
+  const coverageVisible = coverageDisplayState === 'showing' && coverageSummary != null;
+  const coverageFunctionMetricsAvailable = useMemo(() => {
+    if (!coverageVisible) {
+      return false;
+    }
+    return hasCoverageFunctionMetrics(coverageSummary?.functions ?? []);
+  }, [coverageSummary, coverageVisible]);
+  const functionListMode = coverageVisible && coverageFunctionMetricsAvailable ? 'coverage' : 'analysis';
+  const displayedFunctions = useMemo<FunctionListItem[]>(() => {
+    const coverageFunctions = coverageVisible ? coverageSummary?.functions ?? [] : [];
+    if (coverageFunctions.length > 0) {
+      return coverageFunctions.map(toCoverageFunctionListItem);
+    }
+    if (analysisSummary) {
+      return analysisSummary.functions.map(toAnalysisFunctionListItem);
+    }
+    return [];
+  }, [analysisSummary, coverageSummary, coverageVisible]);
+  const activeFunction = useMemo(
+    () => displayedFunctions.find((item) => item.functionId === selectedFunctionId) ?? null,
+    [displayedFunctions, selectedFunctionId],
+  );
+  const coverageOverlayReady = coverageVisible && hasCoverageOverlay(coverageSummary);
+  const coverageRunFailed = coverageVisible && isCoverageRunFailed(coverageSummary?.status);
+  const coverageFailureMessage = coverageVisible ? resolveCoverageFailureMessage(coverageSummary) : '';
+  const hasRawCoverageOutput = Boolean(
+    coverageVisible && coverageSummary
+      && ((coverageSummary.stdout?.trim().length ?? 0) > 0 || (coverageSummary.stderr?.trim().length ?? 0) > 0),
+  );
+  const formattedStartedAt = coverageVisible ? formatTimestamp(coverageSummary?.startedAt ?? null) : null;
+  const formattedCompletedAt = coverageVisible ? formatTimestamp(coverageSummary?.completedAt ?? null) : null;
+  const formattedDuration = coverageVisible ? formatRunDuration(coverageSummary?.startedAt ?? null, coverageSummary?.completedAt ?? null) : null;
+
+  const setCacheEntry = useCallback((cacheKey: string, entry: FileCoverageCacheEntry) => {
+    if (!entry.analysisSummary && !entry.coverageSummary) {
+      coverageCacheRef.current.delete(cacheKey);
+      return;
+    }
+    coverageCacheRef.current.set(cacheKey, entry);
+  }, []);
+
+  const mergeCacheEntry = useCallback((cacheKey: string | null, updates: Partial<FileCoverageCacheEntry>) => {
+    if (!cacheKey) {
+      return;
+    }
+    const existingEntry = coverageCacheRef.current.get(cacheKey) ?? {
+      analysisSummary: null,
+      coverageSummary: null,
+    };
+    setCacheEntry(cacheKey, {
+      ...existingEntry,
+      ...updates,
+    });
+  }, [setCacheEntry]);
+
+  const invalidateCoverageForCurrentFile = useCallback((message?: string) => {
+    if (currentFileCacheKey) {
+      const existingEntry = coverageCacheRef.current.get(currentFileCacheKey);
+      if (existingEntry) {
+        setCacheEntry(currentFileCacheKey, {
+          analysisSummary: existingEntry.analysisSummary,
+          coverageSummary: null,
+        });
+      }
+    }
+
+    setCoverageSummary(null);
+    setActiveCoverageRunId(null);
+    setCoverageDisplayState('not_run');
+    setSelectedFunctionCfg(null);
+    setCfgMode('plain');
+    setGraphError('');
+    setIsRawRunDetailsOpen(false);
+    setAutoSuggestRunId(null);
+    if (message) {
+      setPanelError(message);
+    }
+  }, [currentFileCacheKey, setCacheEntry]);
+
+  useEffect(() => {
+    currentFileCacheKeyRef.current = currentFileCacheKey;
+  }, [currentFileCacheKey]);
+
   useEffect(() => {
     setAnalysisSummary(null);
     setCoverageSummary(null);
     setActiveCoverageRunId(null);
+    setCoverageDisplayState('not_run');
     setSelectedFunctionId(null);
     setSelectedFunctionCfg(null);
     setCfgMode('plain');
     setIsAnalyzing(false);
     setIsRunningCoverage(false);
     setIsLoadingCfg(false);
+    setIsRestoringCoverage(false);
+    setIsShowingCoverage(false);
     setPanelError('');
     setGraphError('');
     setIsGraphExpanded(false);
     setIsRawRunDetailsOpen(false);
     setAutoSuggestRunId(null);
-  }, [projectId, selectedFilePath]);
 
-  const normalizedLanguage = file?.language?.trim().toUpperCase() ?? null;
-  const isJavaFile = normalizedLanguage === 'JAVA';
-  const isAnalysisSupportedFile = normalizedLanguage !== null && SUPPORTED_ANALYSIS_LANGUAGES.has(normalizedLanguage);
-  const hasSelectedFile = Boolean(selectedFilePath);
-  const functionListMode = coverageSummary ? 'coverage' : 'analysis';
-  const displayedFunctions = useMemo<FunctionListItem[]>(() => {
-    if (coverageSummary) {
-      return coverageSummary.functions.map(toCoverageFunctionListItem);
+    if (!currentFileCacheKey) {
+      return;
     }
-    if (analysisSummary) {
-      return analysisSummary.functions.map(toAnalysisFunctionListItem);
+
+    const cachedEntry = coverageCacheRef.current.get(currentFileCacheKey);
+    if (cachedEntry) {
+      const nextAnalysisSummary = cachedEntry.analysisSummary
+        ?? (cachedEntry.coverageSummary ? toAnalysisSummaryFromCoverageSummary(cachedEntry.coverageSummary) : null);
+      setAnalysisSummary(nextAnalysisSummary);
+      setActiveCoverageRunId(cachedEntry.coverageSummary?.coverageRunId ?? null);
+      setCoverageDisplayState(cachedEntry.coverageSummary ? 'can_show' : 'not_run');
+      return;
     }
-    return [];
-  }, [analysisSummary, coverageSummary]);
-  const activeFunction = useMemo(
-    () => displayedFunctions.find((item) => item.functionId === selectedFunctionId) ?? null,
-    [displayedFunctions, selectedFunctionId],
-  );
-  const coverageOverlayReady = hasCoverageOverlay(coverageSummary);
-  const coverageRunFailed = isCoverageRunFailed(coverageSummary?.status);
-  const coverageFailureMessage = resolveCoverageFailureMessage(coverageSummary);
-  const hasRawCoverageOutput = Boolean(
-    coverageSummary && ((coverageSummary.stdout?.trim().length ?? 0) > 0 || (coverageSummary.stderr?.trim().length ?? 0) > 0),
-  );
-  const formattedStartedAt = formatTimestamp(coverageSummary?.startedAt ?? null);
-  const formattedCompletedAt = formatTimestamp(coverageSummary?.completedAt ?? null);
-  const formattedDuration = formatRunDuration(coverageSummary?.startedAt ?? null, coverageSummary?.completedAt ?? null);
+
+    if (!projectId || !selectedFilePath || !isCoverageSupportedFile) {
+      return;
+    }
+
+    let isCancelled = false;
+    setIsRestoringCoverage(true);
+
+    void analysisApi.getLatestCoverage(projectId, selectedFilePath)
+      .then((response) => {
+        if (isCancelled || currentFileCacheKeyRef.current !== currentFileCacheKey) {
+          return;
+        }
+
+        const nextCoverageSummary = normalizeCoverageSummary(response.data);
+        const nextAnalysisSummary = toAnalysisSummaryFromCoverageSummary(nextCoverageSummary);
+
+        setCacheEntry(currentFileCacheKey, {
+          analysisSummary: nextAnalysisSummary,
+          coverageSummary: nextCoverageSummary,
+        });
+        setAnalysisSummary(nextAnalysisSummary);
+        setActiveCoverageRunId(nextCoverageSummary.coverageRunId);
+        setCoverageDisplayState('can_show');
+      })
+      .catch(() => {
+        if (!isCancelled && currentFileCacheKeyRef.current === currentFileCacheKey) {
+          setCoverageDisplayState('not_run');
+        }
+      })
+      .finally(() => {
+        if (!isCancelled && currentFileCacheKeyRef.current === currentFileCacheKey) {
+          setIsRestoringCoverage(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentFileCacheKey, isCoverageSupportedFile, projectId, selectedFilePath, setCacheEntry]);
 
   useEffect(() => {
     onSetCodeCoverageDecorations(buildCodeCoverageDecorations(selectedFunctionCfg));
@@ -374,16 +599,92 @@ export function AnalysisPanel({
         setSelectedFunctionCfg(normalizeFunctionCfgResponse(response.data));
         setCfgMode(shouldUseCoverageCfg ? 'coverage' : 'plain');
       } catch (error) {
+        const message = resolveApiErrorMessage(
+          error,
+          shouldUseCoverageCfg ? 'Unable to load coverage CFG overlay' : 'Unable to load function CFG',
+        );
         setSelectedFunctionCfg(null);
         setCfgMode('plain');
-        setGraphError(
-          resolveApiErrorMessage(error, shouldUseCoverageCfg ? 'Unable to load coverage CFG overlay' : 'Unable to load function CFG'),
-        );
+        if (shouldUseCoverageCfg && isCoverageUnavailableMessage(message)) {
+          invalidateCoverageForCurrentFile(message);
+          return;
+        }
+        setGraphError(message);
       } finally {
         setIsLoadingCfg(false);
       }
     },
-    [projectId, activeCoverageRunId, coverageOverlayReady],
+    [projectId, activeCoverageRunId, coverageOverlayReady, invalidateCoverageForCurrentFile],
+  );
+
+  const resolveCoverageFunctions = useCallback(
+    async (
+      summary: JavaFileAnalysisResponse | null,
+      coverageRunId: number | null,
+      coverageOverlayAvailable: boolean,
+    ): Promise<CoverageFunctionSummaryResponse[]> => {
+      const analysisFunctions = summary?.functions ?? [];
+      if (analysisFunctions.length === 0) {
+        return [];
+      }
+
+      if (!projectId || coverageRunId == null || !coverageOverlayAvailable) {
+        return analysisFunctions.map(toFallbackCoverageFunction);
+      }
+
+      const overlayResponses = await Promise.allSettled(
+        analysisFunctions.map(async (item) => {
+          const response = await analysisApi.getFunctionCfg(projectId, item.functionId, coverageRunId);
+          return toCoverageFunctionFromCfg(normalizeFunctionCfgResponse(response.data));
+        }),
+      );
+
+      return analysisFunctions.map((item, index) => {
+        const overlayResponse = overlayResponses[index];
+        if (overlayResponse?.status === 'fulfilled') {
+          return normalizeCoverageFunction(overlayResponse.value);
+        }
+        return toFallbackCoverageFunction(item);
+      });
+    },
+    [projectId],
+  );
+
+  const hydrateCoverageSummary = useCallback(
+    async (
+      summary: JavaFileCoverageResponse,
+      preferredAnalysisSummary: JavaFileAnalysisResponse | null,
+    ): Promise<{ analysisSummary: JavaFileAnalysisResponse | null; coverageSummary: JavaFileCoverageResponse }> => {
+      let nextAnalysisSummary = preferredAnalysisSummary;
+      if (!nextAnalysisSummary && summary.functions.length > 0) {
+        nextAnalysisSummary = toAnalysisSummaryFromCoverageSummary(summary);
+      }
+
+      if (!nextAnalysisSummary && projectId && selectedFilePath) {
+        const analysisResponse = await analysisApi.analyzeFile(projectId, selectedFilePath);
+        nextAnalysisSummary = normalizeAnalysisSummary(analysisResponse.data);
+      }
+
+      const nextCoverageOverlayReady = hasCoverageOverlay(summary);
+      const nextCoverageFunctions =
+        summary.functions.length > 0
+          ? summary.functions
+          : await resolveCoverageFunctions(nextAnalysisSummary, summary.coverageRunId, nextCoverageOverlayReady);
+      const nextCoverageSummary = normalizeCoverageSummary({
+        ...summary,
+        functions: nextCoverageFunctions,
+      });
+
+      if (!nextAnalysisSummary && nextCoverageSummary.functions.length > 0) {
+        nextAnalysisSummary = toAnalysisSummaryFromCoverageSummary(nextCoverageSummary);
+      }
+
+      return {
+        analysisSummary: nextAnalysisSummary,
+        coverageSummary: nextCoverageSummary,
+      };
+    },
+    [projectId, resolveCoverageFunctions, selectedFilePath],
   );
 
   const handleAnalyze = useCallback(async () => {
@@ -391,14 +692,19 @@ export function AnalysisPanel({
       return;
     }
 
+    const cacheKey = currentFileCacheKey;
+    const cachedCoverageSummary = cacheKey ? coverageCacheRef.current.get(cacheKey)?.coverageSummary ?? null : null;
+
     setIsAnalyzing(true);
     setIsRunningCoverage(false);
     setIsLoadingCfg(false);
+    setIsShowingCoverage(false);
     setPanelError('');
     setGraphError('');
     setAnalysisSummary(null);
     setCoverageSummary(null);
-    setActiveCoverageRunId(null);
+    setActiveCoverageRunId(cachedCoverageSummary?.coverageRunId ?? null);
+    setCoverageDisplayState(cachedCoverageSummary ? 'can_show' : 'not_run');
     setSelectedFunctionId(null);
     setSelectedFunctionCfg(null);
     setCfgMode('plain');
@@ -409,6 +715,9 @@ export function AnalysisPanel({
       const response = await analysisApi.analyzeFile(projectId, selectedFilePath);
       const nextSummary = normalizeAnalysisSummary(response.data);
       setAnalysisSummary(nextSummary);
+      mergeCacheEntry(cacheKey, {
+        analysisSummary: nextSummary,
+      });
 
       if (nextSummary.functions.length === 0) {
         return;
@@ -422,42 +731,61 @@ export function AnalysisPanel({
     } finally {
       setIsAnalyzing(false);
     }
-  }, [loadFunctionCfg, onFocusCodeRange, projectId, selectedFilePath]);
+  }, [currentFileCacheKey, loadFunctionCfg, mergeCacheEntry, onFocusCodeRange, projectId, selectedFilePath]);
 
   const handleRunCoverage = useCallback(async () => {
     if (!projectId || !selectedFilePath) {
       return;
     }
 
+    const cacheKey = currentFileCacheKey;
+    const cachedEntry = cacheKey ? coverageCacheRef.current.get(cacheKey) ?? null : null;
+    const cachedCoverageSummary = cachedEntry?.coverageSummary ?? null;
+
     setIsRunningCoverage(true);
     setIsAnalyzing(false);
     setIsLoadingCfg(false);
+    setIsShowingCoverage(false);
     setPanelError('');
     setGraphError('');
-    setAnalysisSummary(null);
+    setAnalysisSummary(cachedEntry?.analysisSummary ?? null);
     setCoverageSummary(null);
-    setActiveCoverageRunId(null);
+    setActiveCoverageRunId(cachedCoverageSummary?.coverageRunId ?? null);
+    setCoverageDisplayState(cachedCoverageSummary ? 'can_show' : 'not_run');
     setSelectedFunctionId(null);
     setSelectedFunctionCfg(null);
     setCfgMode('plain');
     setIsRawRunDetailsOpen(false);
 
     try {
-      const response = await analysisApi.runJavaCoverage(projectId, selectedFilePath);
+      let nextAnalysisSummary: JavaFileAnalysisResponse | null = analysisSummary;
+      if (!isJavaFile) {
+        const analysisResponse = await analysisApi.analyzeFile(projectId, selectedFilePath);
+        nextAnalysisSummary = normalizeAnalysisSummary(analysisResponse.data);
+      }
+
+      const response = await analysisApi.runCoverage(projectId, selectedFilePath);
       const nextSummary = normalizeCoverageSummary(response.data);
-      const nextCoverageRunId = nextSummary.coverageRunId;
-      const nextCoverageOverlayReady = hasCoverageOverlay(nextSummary);
+      const hydrated = await hydrateCoverageSummary(nextSummary, nextAnalysisSummary);
+      const nextCoverageRunId = hydrated.coverageSummary.coverageRunId;
 
-      setCoverageSummary(nextSummary);
+      setAnalysisSummary(hydrated.analysisSummary);
+      setCoverageSummary(hydrated.coverageSummary);
       setActiveCoverageRunId(nextCoverageRunId);
-      setIsRawRunDetailsOpen(isCoverageRunFailed(nextSummary.status));
-      setAutoSuggestRunId(Date.now());
+      setCoverageDisplayState('showing');
+      mergeCacheEntry(cacheKey, {
+        analysisSummary: hydrated.analysisSummary,
+        coverageSummary: hydrated.coverageSummary,
+      });
+      setIsRawRunDetailsOpen(isCoverageRunFailed(hydrated.coverageSummary.status));
+      setAutoSuggestRunId(hasCoverageFunctionMetrics(hydrated.coverageSummary.functions) ? Date.now() : null);
 
-      if (nextSummary.functions.length === 0) {
+      if (hydrated.coverageSummary.functions.length === 0) {
         return;
       }
 
-      const firstFunction = toCoverageFunctionListItem(nextSummary.functions[0]);
+      const nextCoverageOverlayReady = hasCoverageOverlay(hydrated.coverageSummary);
+      const firstFunction = toCoverageFunctionListItem(hydrated.coverageSummary.functions[0]);
       onFocusCodeRange(
         firstFunction.startLine,
         firstFunction.endLine,
@@ -469,11 +797,75 @@ export function AnalysisPanel({
         coverageOverlayAvailable: nextCoverageOverlayReady,
       });
     } catch (error) {
-      setPanelError(resolveApiErrorMessage(error, 'Unable to run Java coverage'));
+      setPanelError(resolveApiErrorMessage(error, 'Unable to run coverage'));
     } finally {
       setIsRunningCoverage(false);
     }
-  }, [loadFunctionCfg, onFocusCodeRange, projectId, selectedFilePath]);
+  }, [analysisSummary, currentFileCacheKey, hydrateCoverageSummary, isJavaFile, loadFunctionCfg, mergeCacheEntry, onFocusCodeRange, projectId, selectedFilePath]);
+
+  const handleShowCoverage = useCallback(async () => {
+    if (!currentFileCacheKey) {
+      return;
+    }
+
+    const cachedEntry = coverageCacheRef.current.get(currentFileCacheKey);
+    const cachedCoverageSummary = cachedEntry?.coverageSummary ?? null;
+    if (!cachedCoverageSummary) {
+      setCoverageDisplayState('not_run');
+      setActiveCoverageRunId(null);
+      return;
+    }
+
+    setIsShowingCoverage(true);
+    setPanelError('');
+    setGraphError('');
+    setCoverageSummary(null);
+    setSelectedFunctionId(null);
+    setSelectedFunctionCfg(null);
+    setCfgMode('plain');
+    setIsRawRunDetailsOpen(false);
+
+    try {
+      const hydrated = await hydrateCoverageSummary(cachedCoverageSummary, cachedEntry?.analysisSummary ?? analysisSummary);
+
+      setAnalysisSummary(hydrated.analysisSummary);
+      setCoverageSummary(hydrated.coverageSummary);
+      setActiveCoverageRunId(hydrated.coverageSummary.coverageRunId);
+      setCoverageDisplayState('showing');
+      mergeCacheEntry(currentFileCacheKey, {
+        analysisSummary: hydrated.analysisSummary,
+        coverageSummary: hydrated.coverageSummary,
+      });
+      setIsRawRunDetailsOpen(isCoverageRunFailed(hydrated.coverageSummary.status));
+      setAutoSuggestRunId(hasCoverageFunctionMetrics(hydrated.coverageSummary.functions) ? Date.now() : null);
+
+      if (hydrated.coverageSummary.functions.length === 0) {
+        return;
+      }
+
+      const nextCoverageOverlayReady = hasCoverageOverlay(hydrated.coverageSummary);
+      const firstFunction = toCoverageFunctionListItem(hydrated.coverageSummary.functions[0]);
+      onFocusCodeRange(
+        firstFunction.startLine,
+        firstFunction.endLine,
+        resolveFunctionFocusTone(firstFunction, 'coverage'),
+      );
+      await loadFunctionCfg(firstFunction.functionId, {
+        preferredMode: nextCoverageOverlayReady ? 'coverage' : 'plain',
+        coverageRunId: hydrated.coverageSummary.coverageRunId,
+        coverageOverlayAvailable: nextCoverageOverlayReady,
+      });
+    } catch (error) {
+      const message = resolveApiErrorMessage(error, 'Unable to show coverage');
+      if (isCoverageUnavailableMessage(message)) {
+        invalidateCoverageForCurrentFile(message);
+        return;
+      }
+      setPanelError(message);
+    } finally {
+      setIsShowingCoverage(false);
+    }
+  }, [analysisSummary, currentFileCacheKey, hydrateCoverageSummary, invalidateCoverageForCurrentFile, loadFunctionCfg, mergeCacheEntry, onFocusCodeRange]);
 
   const handleSelectFunction = useCallback(
     (functionId: number) => {
@@ -487,16 +879,29 @@ export function AnalysisPanel({
       }
 
       void loadFunctionCfg(functionId, {
-        preferredMode: coverageSummary ? 'coverage' : 'plain',
+        preferredMode: coverageVisible ? 'coverage' : 'plain',
       });
     },
-    [coverageSummary, displayedFunctions, functionListMode, loadFunctionCfg, onFocusCodeRange],
+    [coverageVisible, displayedFunctions, functionListMode, loadFunctionCfg, onFocusCodeRange],
   );
 
   const analyzeButtonLabel = analysisSummary ? 'Re-run Analysis' : 'Analyze';
-  const coverageButtonLabel = coverageSummary ? 'Re-run Coverage' : 'Run Coverage';
-  const runCoverageDisabled = !projectId || !isJavaFile || isFileLoading || isAnalyzing || isRunningCoverage;
-  const isGraphBusy = isAnalyzing || isRunningCoverage || isLoadingCfg;
+  const coverageButtonLabel = isRestoringCoverage || isShowingCoverage
+    ? 'Loading Coverage...'
+    : coverageDisplayState === 'showing'
+      ? 'Re-run Coverage'
+      : coverageDisplayState === 'can_show'
+        ? 'Show Coverage'
+        : 'Run Coverage';
+  const runCoverageDisabled = !projectId
+    || !isCoverageSupportedFile
+    || isFileLoading
+    || isAnalyzing
+    || isRunningCoverage
+    || isRestoringCoverage
+    || isShowingCoverage;
+  const isGraphBusy = isAnalyzing || isRunningCoverage || isLoadingCfg || isShowingCoverage;
+  const handleCoverageAction = coverageDisplayState === 'can_show' ? handleShowCoverage : handleRunCoverage;
 
   return (
     <div className="analysis-panel">
@@ -504,7 +909,7 @@ export function AnalysisPanel({
         <div>
           <h2>Analysis</h2>
           <p className="panel-muted panel-description">
-            Parse supported source files, inspect CFG, and run inline coverage overlays for Java when available.
+            Parse supported source files, inspect CFG, and run inline coverage overlays for JavaScript, TypeScript, and Java when available.
           </p>
         </div>
 
@@ -512,7 +917,7 @@ export function AnalysisPanel({
           <button
             type="button"
             onClick={handleAnalyze}
-            disabled={!projectId || !isAnalysisSupportedFile || isFileLoading || isAnalyzing || isRunningCoverage}
+            disabled={!projectId || !isAnalysisSupportedFile || isFileLoading || isAnalyzing || isRunningCoverage || isRestoringCoverage || isShowingCoverage}
           >
             {isAnalyzing ? (
               <span className="button-loading-content">
@@ -526,9 +931,9 @@ export function AnalysisPanel({
           <button
             type="button"
             className="button-secondary"
-            onClick={handleRunCoverage}
+            onClick={handleCoverageAction}
             disabled={runCoverageDisabled}
-            title={!isJavaFile && isAnalysisSupportedFile ? 'Coverage currently supports Java files only.' : undefined}
+            title={!isCoverageSupportedFile && isAnalysisSupportedFile ? 'Coverage is not supported for this file type.' : undefined}
           >
             {isRunningCoverage ? (
               <span className="button-loading-content">
@@ -555,7 +960,7 @@ export function AnalysisPanel({
           )}
           {coverageSummary && (
             <span className={`analysis-pill ${isCoverageRunSucceeded(coverageSummary.status) ? 'success' : 'muted'}`}>
-              Coverage {coverageSummary.status ?? 'UNKNOWN'}
+              Coverage {formatCoverageRunStatus(coverageSummary.status)}
             </span>
           )}
           {(analysisSummary || coverageSummary) && <span className="analysis-pill">{displayedFunctions.length} functions</span>}
@@ -580,7 +985,7 @@ export function AnalysisPanel({
           <div className="analysis-status-row">
             {coverageSummary.coverageRunId != null && <span className="analysis-pill">Run #{coverageSummary.coverageRunId}</span>}
             <span className={`analysis-pill ${isCoverageRunSucceeded(coverageSummary.status) ? 'success' : 'muted'}`}>
-              {coverageSummary.status ?? 'UNKNOWN'}
+              {formatCoverageRunStatus(coverageSummary.status)}
             </span>
             <span className={`analysis-pill ${coverageSummary.overlayAvailable ? 'success' : 'muted'}`}>
               {coverageSummary.overlayAvailable ? 'Overlay available' : 'Overlay unavailable'}
@@ -635,7 +1040,7 @@ export function AnalysisPanel({
         </section>
       )}
 
-      {coverageSummary && (
+      {coverageSummary && coverageFunctionMetricsAvailable && (
         <AiSuggestTestsPanel
           sourceFilePath={selectedFilePath}
           sourceFile={file}
@@ -666,11 +1071,13 @@ export function AnalysisPanel({
                   functions={displayedFunctions}
                   selectedFunctionId={selectedFunctionId}
                   onSelect={handleSelectFunction}
-                  isLoading={isAnalyzing || isRunningCoverage}
+                  isLoading={isAnalyzing || isRunningCoverage || isShowingCoverage}
                   mode={functionListMode}
                   loadingMessage={
                     isRunningCoverage
                       ? 'Running coverage and collecting function summaries...'
+                      : isShowingCoverage
+                        ? 'Loading saved coverage and function overlays...'
                       : 'Analyzing functions and building summaries...'
                   }
                 />
@@ -718,12 +1125,14 @@ export function AnalysisPanel({
               onNodeSelect={onFocusCodeRange}
               graphError={graphError}
               emptyMessage="Run analysis or coverage and select a function to inspect its CFG."
-              loadingMessage={
-                isRunningCoverage
-                  ? 'Running coverage and loading control flow graph...'
-                  : isAnalyzing
-                    ? 'Analyzing file and loading control flow graph...'
-                    : 'Loading control flow graph...'
+                loadingMessage={
+                  isRunningCoverage
+                    ? 'Running coverage and loading control flow graph...'
+                    : isShowingCoverage
+                      ? 'Loading saved coverage and control flow graph...'
+                    : isAnalyzing
+                      ? 'Analyzing file and loading control flow graph...'
+                      : 'Loading control flow graph...'
               }
             />
             {coverageSummary && !coverageOverlayReady && displayedFunctions.length > 0 && selectedFunctionCfg && (

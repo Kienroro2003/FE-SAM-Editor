@@ -12,7 +12,7 @@ const githubAuthorizationPath = '/oauth2/authorization/github';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, setSession } = useAuth();
+  const { isAuthenticated, authError, clearAuthError, setSession } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +25,8 @@ export function LoginPage() {
     [email, password],
   );
 
+  const displayedError = error || authError;
+
   if (isAuthenticated) {
     return <Navigate to="/workspace" replace />;
   }
@@ -32,6 +34,7 @@ export function LoginPage() {
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusyAction('login');
+    clearAuthError();
     setError('');
     setMessage('');
 
@@ -48,6 +51,7 @@ export function LoginPage() {
 
   const handleGithubLogin = () => {
     setBusyAction('github');
+    clearAuthError();
     setError('');
     setMessage('');
 
@@ -65,7 +69,7 @@ export function LoginPage() {
       title="Login"
       subtitle="Đăng nhập bằng email/password hoặc GitHub để vào workspace."
       message={message}
-      error={error}
+      error={displayedError}
       loadingText={
         busyAction === 'login'
           ? 'Authenticating and starting your session...'
@@ -79,14 +83,24 @@ export function LoginPage() {
         <input
           placeholder="Email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setEmail(event.target.value);
+          }}
           required
         />
         <input
           placeholder="Password"
           type="password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            if (authError) {
+              clearAuthError();
+            }
+            setPassword(event.target.value);
+          }}
           required
         />
 
