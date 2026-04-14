@@ -30,7 +30,7 @@ function mapLanguage(language: string | null | undefined): string {
 }
 
 function toWorkspacePath(path: string): string {
-  return path.replaceAll('\\', '/');
+  return path.replace(/\\/g, '/');
 }
 
 function resolveTestPathCandidates(sourcePath: string): string[] {

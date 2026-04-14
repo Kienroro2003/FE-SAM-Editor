@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
 import { useCallback, useEffect, useRef, type ComponentProps } from 'react';
-import type { IRange, editor } from 'monaco-editor';
+import type { IDisposable, IRange, editor } from 'monaco-editor';
 import type { WorkspaceFileContentResponse } from '../../shared/api/types';
 import type { CodeCoverageDecoration, CoverageTone } from '../../shared/utils/coverage';
 import { LoadingState } from '../common/LoadingState';
@@ -17,6 +17,8 @@ interface CodeViewerProps {
   isLoading: boolean;
   focusRequest: CodeFocusRequest | null;
   coverageDecorations: CodeCoverageDecoration[];
+  onContentChange?: (nextContent: string) => void;
+  onCursorChange?: (line: number, column: number) => void;
 }
 
 const LANGUAGE_MAP: Record<string, string> = {
@@ -54,11 +56,19 @@ function coverageDecorationClassName(coverageTone: CoverageTone): string {
   return `code-viewer-line-coverage-${coverageTone}`;
 }
 
-export function CodeViewer({ file, isLoading, focusRequest, coverageDecorations }: CodeViewerProps) {
+export function CodeViewer({
+  file,
+  isLoading,
+  focusRequest,
+  coverageDecorations,
+  onContentChange,
+  onCursorChange,
+}: CodeViewerProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<MonacoInstance | null>(null);
   const focusDecorationIdsRef = useRef<string[]>([]);
   const coverageDecorationIdsRef = useRef<string[]>([]);
+  const cursorListenerRef = useRef<IDisposable | null>(null);
 
   const clearFocusDecorations = useCallback(() => {
     const editorInstance = editorRef.current;
@@ -154,14 +164,31 @@ export function CodeViewer({ file, isLoading, focusRequest, coverageDecorations 
       editorRef.current = editorInstance;
       monacoRef.current = monacoInstance;
 
+      cursorListenerRef.current?.dispose();
+      cursorListenerRef.current = editorInstance.onDidChangeCursorPosition((event) => {
+        onCursorChange?.(event.position.lineNumber, event.position.column);
+      });
+
+      const currentPosition = editorInstance.getPosition();
+      if (currentPosition) {
+        onCursorChange?.(currentPosition.lineNumber, currentPosition.column);
+      }
+
       applyCoverageDecorations(coverageDecorations);
 
       if (focusRequest) {
         applyFocusRequest(focusRequest);
       }
     },
-    [applyCoverageDecorations, applyFocusRequest, coverageDecorations, focusRequest],
+    [applyCoverageDecorations, applyFocusRequest, coverageDecorations, focusRequest, onCursorChange],
   );
+
+  useEffect(() => {
+    return () => {
+      cursorListenerRef.current?.dispose();
+      cursorListenerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!file) {
@@ -201,24 +228,34 @@ export function CodeViewer({ file, isLoading, focusRequest, coverageDecorations 
 
   return (
     <div className="code-viewer">
-      <div className="code-viewer-header">
-        <span>{file.path}</span>
-        <span>{file.language}</span>
-      </div>
       <Editor
         height="100%"
-        theme="vs-light"
+        theme="vs-dark"
         language={mapLanguage(file.language)}
         path={file.path}
         value={file.content}
+        onChange={(nextValue) => {
+          onContentChange?.(nextValue ?? '');
+        }}
         onMount={handleEditorMount}
         options={{
-          readOnly: true,
+          readOnly: false,
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
-          fontSize: 13,
-          fontFamily: "'JetBrains Mono', 'Cascadia Code', monospace",
+          automaticLayout: true,
+          fontSize: 14,
+          lineHeight: 22,
+          fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
           wordWrap: 'off',
+          renderLineHighlight: 'all',
+          cursorBlinking: 'solid',
+          bracketPairColorization: {
+            enabled: true,
+          },
+          padding: {
+            top: 10,
+            bottom: 20,
+          },
         }}
       />
     </div>
