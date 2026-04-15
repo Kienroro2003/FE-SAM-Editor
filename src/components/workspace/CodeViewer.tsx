@@ -230,7 +230,7 @@ export function CodeViewer({
     <div className="code-viewer">
       <Editor
         height="100%"
-        theme="vs-dark"
+        theme="vs"
         language={mapLanguage(file.language)}
         path={file.path}
         value={file.content}

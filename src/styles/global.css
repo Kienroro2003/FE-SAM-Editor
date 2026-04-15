@@ -1626,6 +1626,40 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.analysis-run-suggestion-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analysis-run-suggest-text {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, white);
+  color: var(--text-main);
+  font-size: 12px;
+  line-height: 1.55;
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.analysis-run-suggest-code {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, white);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #1f1f1f;
+}
+
+.analysis-run-suggest-code .monaco-editor,
+.analysis-run-suggest-code .monaco-editor .overflow-guard {
+  border-radius: inherit;
+}
+
 .analysis-overlay-note {
   margin-top: 2px;
 }

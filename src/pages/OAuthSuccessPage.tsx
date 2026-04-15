@@ -1,15 +1,16 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../shared/auth/AuthContext';
 
 export function OAuthSuccessPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { setSession } = useAuth();
+  const { isAuthenticated, setSession } = useAuth();
+  const [hasAppliedSession, setHasAppliedSession] = useState(false);
   const errorMessage = params.get('error');
 
   const payload = useMemo(() => {
-    const accessToken = params.get('token');
+    const accessToken = params.get('token') ?? params.get('accessToken');
     const refreshToken = params.get('refreshToken');
     if (!accessToken) {
       return null;
@@ -24,12 +25,21 @@ export function OAuthSuccessPage() {
   }, [params]);
 
   useEffect(() => {
-    if (!payload) {
+    if (!payload || hasAppliedSession) {
       return;
     }
+
     setSession(payload);
+    setHasAppliedSession(true);
+  }, [payload, hasAppliedSession, setSession]);
+
+  useEffect(() => {
+    if (!hasAppliedSession || !isAuthenticated) {
+      return;
+    }
+
     navigate('/workspace', { replace: true });
-  }, [payload, setSession, navigate]);
+  }, [hasAppliedSession, isAuthenticated, navigate]);
 
   if (!payload) {
     return (

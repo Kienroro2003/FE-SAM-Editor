@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AnalysisPanel } from '../components/workspace/AnalysisPanel';
+import { AnalysisPanel, type AnalysisToolView } from '../components/workspace/AnalysisPanel';
 import { CodeViewer } from '../components/workspace/CodeViewer';
 import { DeleteWorkspaceModal } from '../components/workspace/DeleteWorkspaceModal';
 import { ImportWorkspaceModal } from '../components/workspace/ImportWorkspaceModal';
@@ -22,8 +22,8 @@ import { buildZipFromFolderFiles, resolveFolderName } from '../shared/utils/work
 
 type ImportAction = 'github' | 'zip' | null;
 type AuthAction = 'refresh' | 'logout' | 'logoutAll' | null;
-type ActivityView = 'explorer' | 'search' | 'analysis' | 'account';
-type BottomPanelTab = 'terminal' | 'problems' | 'output';
+type ActivityView = 'explorer' | 'search' | 'account';
+type BottomPanelTab = 'terminal' | 'problems';
 type InputDialogMode = 'rename' | 'new-file' | 'new-folder';
 
 interface CodeFocusRequest {
@@ -74,7 +74,7 @@ interface InputDialogState {
 }
 
 interface DragState {
-  kind: 'sidebar' | 'panel';
+  kind: 'sidebar' | 'panel' | 'tool-panel';
   startPointer: number;
   startSize: number;
 }
@@ -82,6 +82,9 @@ interface DragState {
 const SIDEBAR_MIN_WIDTH = 150;
 const SIDEBAR_MAX_WIDTH = 600;
 const SIDEBAR_DEFAULT_WIDTH = 260;
+const TOOL_PANEL_MIN_WIDTH = 340;
+const TOOL_PANEL_MAX_WIDTH = 680;
+const TOOL_PANEL_DEFAULT_WIDTH = 420;
 const PANEL_DEFAULT_HEIGHT = 200;
 const PANEL_MIN_HEIGHT = 120;
 const PANEL_MAX_HEIGHT_RATIO = 0.7;
@@ -89,6 +92,17 @@ const VIRTUAL_PREFIX = 'virtual://';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function resolveSidebarTitle(view: ActivityView): string {
+  switch (view) {
+    case 'search':
+      return 'SEARCH';
+    case 'account':
+      return 'ACCOUNT';
+    default:
+      return 'EXPLORER';
+  }
 }
 
 function fileNameFromPath(path: string): string {
@@ -375,9 +389,12 @@ export function WorkspacePage() {
   const [activityView, setActivityView] = useState<ActivityView>('explorer');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [activeToolTab, setActiveToolTab] = useState<AnalysisToolView>('analysis');
+  const [isToolPanelCollapsed, setIsToolPanelCollapsed] = useState(false);
+  const [toolPanelWidth, setToolPanelWidth] = useState(TOOL_PANEL_DEFAULT_WIDTH);
 
-  const [panelTab, setPanelTab] = useState<BottomPanelTab>('output');
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [panelTab, setPanelTab] = useState<BottomPanelTab>('terminal');
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(true);
   const [isPanelMaximized, setIsPanelMaximized] = useState(false);
   const [panelHeight, setPanelHeight] = useState(PANEL_DEFAULT_HEIGHT);
 
@@ -438,6 +455,16 @@ export function WorkspacePage() {
     }
     return selectedFileContent;
   }, [analysisSelectedFilePath, selectedFileContent]);
+  const sidebarTitle = useMemo(() => resolveSidebarTitle(activityView), [activityView]);
+  const activeToolTitle = useMemo(() => {
+    if (activeToolTab === 'coverage') {
+      return 'COVERAGE';
+    }
+    if (activeToolTab === 'ai') {
+      return 'AI SUGGEST';
+    }
+    return 'ANALYSIS';
+  }, [activeToolTab]);
 
   const normalizedSidebarQuery = sidebarQuery.trim().toLowerCase();
   const visibleExplorerNodes = useMemo(() => {
@@ -920,17 +947,31 @@ export function WorkspacePage() {
     }
   }, [appendTerminalEntry, clearFeedback, clearWorkbenchState, deleteCandidate, selectedProjectId]);
 
+  const openActivityView = useCallback((nextView: ActivityView) => {
+    setActivityView(nextView);
+    setIsSidebarCollapsed(false);
+  }, []);
+
+  const openToolTab = useCallback((nextTab: AnalysisToolView) => {
+    setActiveToolTab(nextTab);
+    setIsToolPanelCollapsed(false);
+    setToolPanelWidth((previous) => clamp(previous, TOOL_PANEL_MIN_WIDTH, TOOL_PANEL_MAX_WIDTH));
+  }, []);
+
+  const toggleToolPanel = useCallback(() => {
+    setIsToolPanelCollapsed((previous) => !previous);
+  }, []);
+
   const handleSelectWorkspace = useCallback(
     (projectId: number) => {
       setWorkspaceTree(null);
       clearWorkbenchState();
       setSelectedProjectId(projectId);
-      setActivityView('explorer');
-      setIsSidebarCollapsed(false);
+      openActivityView('explorer');
       clearFeedback();
       appendTerminalEntry(`Selected workspace #${projectId}.`);
     },
-    [appendTerminalEntry, clearFeedback, clearWorkbenchState],
+    [appendTerminalEntry, clearFeedback, clearWorkbenchState, openActivityView],
   );
 
   const handleBackToProjects = useCallback(() => {
@@ -1077,13 +1118,7 @@ export function WorkspacePage() {
   }, []);
 
   const toggleBottomPanel = useCallback(() => {
-    setIsPanelCollapsed((previous) => {
-      const next = !previous;
-      if (!next) {
-        setPanelTab('output');
-      }
-      return next;
-    });
+    setIsPanelCollapsed((previous) => !previous);
   }, []);
 
   const openCommandPalette = useCallback(() => {
@@ -1119,8 +1154,15 @@ export function WorkspacePage() {
         id: 'toggle-panel',
         label: 'Toggle Bottom Panel',
         shortcut: 'Ctrl+`',
-        keywords: 'terminal problems output panel',
+        keywords: 'terminal problems panel',
         run: toggleBottomPanel,
+      },
+      {
+        id: 'toggle-tools',
+        label: 'Toggle Right Tool Panel',
+        shortcut: '',
+        keywords: 'analysis coverage ai right panel sidebar tools',
+        run: toggleToolPanel,
       },
       {
         id: 'save',
@@ -1162,20 +1204,31 @@ export function WorkspacePage() {
         run: handleCollapseAllFolders,
       },
       {
-        id: 'show-output',
-        label: 'Show Analyze/Coverage Panel',
+        id: 'open-analysis-tab',
+        label: 'Open Analysis Sidebar Tab',
         shortcut: '',
-        keywords: 'analysis coverage cfg graph output',
-        run: () => {
-          setPanelTab('output');
-          setIsPanelCollapsed(false);
-        },
+        keywords: 'analysis parse java function cfg sidebar',
+        run: () => openToolTab('analysis'),
+      },
+      {
+        id: 'open-coverage-tab',
+        label: 'Open Coverage Sidebar Tab',
+        shortcut: '',
+        keywords: 'coverage run test overlay sidebar',
+        run: () => openToolTab('coverage'),
+      },
+      {
+        id: 'open-ai-tab',
+        label: 'Open AI Suggest Sidebar Tab',
+        shortcut: '',
+        keywords: 'ai suggest tests sidebar',
+        run: () => openToolTab('ai'),
       },
       {
         id: 'maximize-panel',
         label: 'Toggle Panel Maximize',
         shortcut: '',
-        keywords: 'maximize panel terminal output',
+        keywords: 'maximize panel terminal problems',
         run: () => {
           setIsPanelCollapsed(false);
           setIsPanelMaximized((previous) => !previous);
@@ -1242,10 +1295,12 @@ export function WorkspacePage() {
     handleSaveActive,
     handleSaveAll,
     loadWorkspaces,
+    openToolTab,
     openCommandPalette,
     openRenameDialog,
     selectedFilePath,
     toggleBottomPanel,
+    toggleToolPanel,
     toggleSidebar,
   ]);
 
@@ -1658,7 +1713,7 @@ export function WorkspacePage() {
       return;
     }
 
-    const cursor = dragState.kind === 'sidebar' ? 'col-resize' : 'row-resize';
+    const cursor = dragState.kind === 'panel' ? 'row-resize' : 'col-resize';
     document.body.style.cursor = cursor;
     document.body.style.userSelect = 'none';
 
@@ -1670,6 +1725,16 @@ export function WorkspacePage() {
           SIDEBAR_MAX_WIDTH,
         );
         setSidebarWidth(nextWidth);
+        return;
+      }
+
+      if (dragState.kind === 'tool-panel') {
+        const nextWidth = clamp(
+          dragState.startSize + (dragState.startPointer - event.clientX),
+          TOOL_PANEL_MIN_WIDTH,
+          TOOL_PANEL_MAX_WIDTH,
+        );
+        setToolPanelWidth(nextWidth);
         return;
       }
 
@@ -1754,10 +1819,7 @@ export function WorkspacePage() {
           <button
             type="button"
             className={`ide-activity-button ${activityView === 'explorer' ? 'active' : ''}`}
-            onClick={() => {
-              setActivityView('explorer');
-              setIsSidebarCollapsed(false);
-            }}
+            onClick={() => openActivityView('explorer')}
             title="Explorer"
           >
             📁
@@ -1765,33 +1827,15 @@ export function WorkspacePage() {
           <button
             type="button"
             className={`ide-activity-button ${activityView === 'search' ? 'active' : ''}`}
-            onClick={() => {
-              setActivityView('search');
-              setIsSidebarCollapsed(false);
-            }}
+            onClick={() => openActivityView('search')}
             title="Search"
           >
             🔎
           </button>
           <button
             type="button"
-            className={`ide-activity-button ${activityView === 'analysis' ? 'active' : ''}`}
-            onClick={() => {
-              setActivityView('analysis');
-              setPanelTab('output');
-              setIsPanelCollapsed(false);
-            }}
-            title="Analyze / Coverage / Graph"
-          >
-            📈
-          </button>
-          <button
-            type="button"
             className={`ide-activity-button ${activityView === 'account' ? 'active' : ''}`}
-            onClick={() => {
-              setActivityView('account');
-              setIsSidebarCollapsed(false);
-            }}
+            onClick={() => openActivityView('account')}
             title="Account"
           >
             ⚙
@@ -1801,15 +1845,17 @@ export function WorkspacePage() {
         {!isSidebarCollapsed && (
           <aside className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
             <header className="ide-sidebar-header">
-              <span className="ide-sidebar-title">EXPLORER</span>
+              <span className="ide-sidebar-title">{sidebarTitle}</span>
               <div className="ide-sidebar-actions">
                 <button type="button" className="ide-icon-button" title="Import Workspace" onClick={() => setIsImportModalOpen(true)}>
                   ⤓
                 </button>
-                <button type="button" className="ide-icon-button" title="Collapse all" onClick={handleCollapseAllFolders}>
-                  ⇱
-                </button>
-                {selectedProjectId !== null && (
+                {(activityView === 'explorer' || activityView === 'search') && selectedProjectId !== null && (
+                  <button type="button" className="ide-icon-button" title="Collapse all" onClick={handleCollapseAllFolders}>
+                    ⇱
+                  </button>
+                )}
+                {(activityView === 'explorer' || activityView === 'search') && selectedProjectId !== null && (
                   <button type="button" className="ide-icon-button" title="Workspace list" onClick={handleBackToProjects}>
                     ↩
                   </button>
@@ -1954,11 +2000,8 @@ export function WorkspacePage() {
               <button
                 type="button"
                 className="ide-icon-button"
-                onClick={() => {
-                  setPanelTab('output');
-                  setIsPanelCollapsed(false);
-                }}
-                title="Open analysis panel"
+                onClick={() => openToolTab('analysis')}
+                title="Open right tool tab"
               >
                 📊
               </button>
@@ -1983,7 +2026,7 @@ export function WorkspacePage() {
                 <div className="ide-empty-logo">SAM</div>
                 <h2>Welcome to SAM Editor Workbench</h2>
                 <p>
-                  VS Code style layout with explorer, tabs, analyze/coverage/graph panel, and command palette.
+                  VS Code style layout with explorer on the left, code editor center, and analysis/coverage/AI tools on the right.
                 </p>
                 <div className="ide-shortcut-grid">
                   <button type="button" className="ide-shortcut-card" onClick={openCommandPalette}>
@@ -2001,13 +2044,10 @@ export function WorkspacePage() {
                   <button
                     type="button"
                     className="ide-shortcut-card"
-                    onClick={() => {
-                      setPanelTab('output');
-                      setIsPanelCollapsed(false);
-                    }}
+                    onClick={() => openToolTab('analysis')}
                   >
-                    <span>Analyze / Coverage / Graph</span>
-                    <strong>Output Panel</strong>
+                    <span>Analysis / Coverage / AI</span>
+                    <strong>Right Tool Tabs</strong>
                   </button>
                 </div>
               </div>
@@ -2052,13 +2092,6 @@ export function WorkspacePage() {
                   >
                     PROBLEMS
                   </button>
-                  <button
-                    type="button"
-                    className={`ide-panel-tab ${panelTab === 'output' ? 'active' : ''}`}
-                    onClick={() => setPanelTab('output')}
-                  >
-                    OUTPUT
-                  </button>
                 </div>
 
                 <div className="ide-panel-actions">
@@ -2099,8 +2132,81 @@ export function WorkspacePage() {
                     {message && <div className="ide-problem-item">Info: {message}</div>}
                   </div>
                 )}
+              </div>
+            </section>
+          )}
+        </section>
 
-                {panelTab === 'output' && (
+        {!isToolPanelCollapsed && (
+          <div
+            className="ide-tool-resize"
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setDragState({
+                kind: 'tool-panel',
+                startPointer: event.clientX,
+                startSize: toolPanelWidth,
+              });
+            }}
+          />
+        )}
+
+        <aside
+          className={`ide-tool-sidebar ${isToolPanelCollapsed ? 'collapsed' : ''}`}
+          style={!isToolPanelCollapsed ? { width: `${toolPanelWidth}px` } : undefined}
+        >
+          <div className="ide-tool-rail" aria-label="Analysis tools">
+            <button
+              type="button"
+              className={`ide-tool-rail-button tool-analysis ${activeToolTab === 'analysis' ? 'active' : ''}`}
+              title="Analysis"
+              aria-label="Analysis"
+              onClick={() => openToolTab('analysis')}
+            >
+              <span aria-hidden="true">📊</span>
+            </button>
+            <button
+              type="button"
+              className={`ide-tool-rail-button tool-coverage ${activeToolTab === 'coverage' ? 'active' : ''}`}
+              title="Coverage"
+              aria-label="Coverage"
+              onClick={() => openToolTab('coverage')}
+            >
+              <span aria-hidden="true">🛡️</span>
+            </button>
+            <button
+              type="button"
+              className={`ide-tool-rail-button tool-ai ${activeToolTab === 'ai' ? 'active' : ''}`}
+              title="AI Suggest"
+              aria-label="AI Suggest"
+              onClick={() => openToolTab('ai')}
+            >
+              <span aria-hidden="true">✨</span>
+            </button>
+            <button
+              type="button"
+              className="ide-tool-rail-button tool-toggle"
+              title={isToolPanelCollapsed ? 'Open tool panel' : 'Collapse tool panel'}
+              onClick={toggleToolPanel}
+            >
+              {isToolPanelCollapsed ? '>' : '<'}
+            </button>
+          </div>
+
+          {!isToolPanelCollapsed && (
+            <div className="ide-tool-content">
+              <header className="ide-tool-header">
+                <span className="ide-tool-title">{activeToolTitle}</span>
+                <button type="button" className="ide-icon-button" title="Collapse tool panel" onClick={toggleToolPanel}>
+                  ✕
+                </button>
+              </header>
+              <div className="ide-tool-body">
+                {selectedProjectId === null ? (
+                  <div className="ide-tree-empty">Select a workspace and open a Java file to use this tool.</div>
+                ) : (
                   <AnalysisPanel
                     projectId={selectedProjectId}
                     selectedFilePath={analysisSelectedFilePath}
@@ -2108,12 +2214,14 @@ export function WorkspacePage() {
                     isFileLoading={isLoadingFile}
                     onFocusCodeRange={handleFocusCodeRange}
                     onSetCodeCoverageDecorations={handleSetCodeCoverageDecorations}
+                    toolView={activeToolTab}
+                    compact
                   />
                 )}
               </div>
-            </section>
+            </div>
           )}
-        </section>
+        </aside>
       </section>
 
       <footer className="ide-status-bar">

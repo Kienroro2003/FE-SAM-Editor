@@ -16,6 +16,8 @@ import { AiSuggestTestsPanel } from '../ai-suggest/AiSuggestTestsPanel';
 import { CfgGraph } from './CfgGraph';
 import { FunctionList, type FunctionListItem } from './FunctionList';
 
+export type AnalysisToolView = 'analysis' | 'coverage' | 'ai';
+
 interface AnalysisPanelProps {
   projectId: number | null;
   selectedFilePath: string | null;
@@ -23,6 +25,8 @@ interface AnalysisPanelProps {
   isFileLoading: boolean;
   onFocusCodeRange: (startLine: number, endLine: number | null, coverageTone: CoverageTone) => void;
   onSetCodeCoverageDecorations: (decorations: CodeCoverageDecoration[]) => void;
+  toolView?: AnalysisToolView;
+  compact?: boolean;
 }
 
 interface LoadFunctionCfgOptions {
@@ -284,6 +288,8 @@ export function AnalysisPanel({
   isFileLoading,
   onFocusCodeRange,
   onSetCodeCoverageDecorations,
+  toolView = 'analysis',
+  compact = false,
 }: AnalysisPanelProps) {
   const [analysisSummary, setAnalysisSummary] = useState<JavaFileAnalysisResponse | null>(null);
   const [coverageSummary, setCoverageSummary] = useState<JavaFileCoverageResponse | null>(null);
@@ -319,8 +325,18 @@ export function AnalysisPanel({
 
   const isJavaFile = file?.language === 'JAVA';
   const hasSelectedFile = Boolean(selectedFilePath);
+  const isAnalysisView = toolView === 'analysis';
+  const isCoverageView = toolView === 'coverage';
+  const isAiView = toolView === 'ai';
+  const showAnalyzeAction = isAnalysisView;
+  const showCoverageAction = isCoverageView || isAiView;
+  const showFunctionAndGraph = !isAiView;
   const functionListMode = coverageSummary ? 'coverage' : 'analysis';
   const displayedFunctions = useMemo<FunctionListItem[]>(() => {
+    if (isAnalysisView && analysisSummary) {
+      return analysisSummary.functions.map(toAnalysisFunctionListItem);
+    }
+
     if (coverageSummary) {
       return coverageSummary.functions.map(toCoverageFunctionListItem);
     }
@@ -328,7 +344,7 @@ export function AnalysisPanel({
       return analysisSummary.functions.map(toAnalysisFunctionListItem);
     }
     return [];
-  }, [analysisSummary, coverageSummary]);
+  }, [analysisSummary, coverageSummary, isAnalysisView]);
   const activeFunction = useMemo(
     () => displayedFunctions.find((item) => item.functionId === selectedFunctionId) ?? null,
     [displayedFunctions, selectedFunctionId],
@@ -493,38 +509,52 @@ export function AnalysisPanel({
   const coverageButtonLabel = coverageSummary ? 'Re-run Coverage' : 'Run Coverage';
   const runCoverageDisabled = !projectId || !isJavaFile || isFileLoading || isAnalyzing || isRunningCoverage;
   const isGraphBusy = isAnalyzing || isRunningCoverage || isLoadingCfg;
+  const panelTitle = isAnalysisView ? 'Analysis' : isCoverageView ? 'Coverage' : 'AI Suggest';
+  const panelDescription = isAnalysisView
+    ? 'Parse Java source and inspect function-level control flow.'
+    : isCoverageView
+      ? 'Run tests with coverage overlay and inspect execution gaps.'
+      : 'Generate missing tests from the latest coverage run.';
 
   return (
-    <div className="analysis-panel">
+    <div className={`analysis-panel ${compact ? 'compact' : ''} analysis-panel-tool-${toolView}`}>
       <div className="analysis-toolbar">
         <div>
-          <h2>Analysis</h2>
+          <h2>{panelTitle}</h2>
           <p className="panel-muted panel-description">
-            Parse Java source, run coverage, and inspect CFG with an inline coverage overlay when it is available.
+            {panelDescription}
           </p>
         </div>
 
         <div className="analysis-toolbar-actions">
-          <button type="button" onClick={handleAnalyze} disabled={!projectId || !isJavaFile || isFileLoading || isAnalyzing || isRunningCoverage}>
-            {isAnalyzing ? (
-              <span className="button-loading-content">
-                <span className="loading-spinner" aria-hidden="true" />
-                Analyzing...
-              </span>
-            ) : (
-              analyzeButtonLabel
-            )}
-          </button>
-          <button type="button" className="button-secondary" onClick={handleRunCoverage} disabled={runCoverageDisabled}>
-            {isRunningCoverage ? (
-              <span className="button-loading-content">
-                <span className="loading-spinner" aria-hidden="true" />
-                Running coverage...
-              </span>
-            ) : (
-              coverageButtonLabel
-            )}
-          </button>
+          {showAnalyzeAction && (
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={!projectId || !isJavaFile || isFileLoading || isAnalyzing || isRunningCoverage}
+            >
+              {isAnalyzing ? (
+                <span className="button-loading-content">
+                  <span className="loading-spinner" aria-hidden="true" />
+                  Analyzing...
+                </span>
+              ) : (
+                analyzeButtonLabel
+              )}
+            </button>
+          )}
+          {showCoverageAction && (
+            <button type="button" className="button-secondary" onClick={handleRunCoverage} disabled={runCoverageDisabled}>
+              {isRunningCoverage ? (
+                <span className="button-loading-content">
+                  <span className="loading-spinner" aria-hidden="true" />
+                  Running coverage...
+                </span>
+              ) : (
+                coverageButtonLabel
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -548,7 +578,7 @@ export function AnalysisPanel({
         </div>
       </div>
 
-      {coverageSummary && (
+      {showCoverageAction && coverageSummary && (
         <section className="analysis-run-summary">
           <div className="analysis-section-header">
             <h3>Run Summary</h3>
@@ -621,7 +651,7 @@ export function AnalysisPanel({
         </section>
       )}
 
-      {coverageSummary && (
+      {isAiView && coverageSummary && (
         <AiSuggestTestsPanel
           projectId={projectId}
           sourceFilePath={selectedFilePath}
@@ -632,6 +662,10 @@ export function AnalysisPanel({
         />
       )}
 
+      {isAiView && !coverageSummary && !isFileLoading && hasSelectedFile && isJavaFile && (
+        <div className="analysis-empty-state compact">Run coverage first, then use AI suggest to generate missing tests.</div>
+      )}
+
       {panelError && <div className="feedback error analysis-feedback">{panelError}</div>}
 
       {isFileLoading && <LoadingState message="Loading selected file..." className="analysis-loading" />}
@@ -640,7 +674,7 @@ export function AnalysisPanel({
         <div className="analysis-empty-state">Analysis and coverage currently support JAVA files only</div>
       )}
 
-      {!isFileLoading && hasSelectedFile && isJavaFile && (
+      {showFunctionAndGraph && !isFileLoading && hasSelectedFile && isJavaFile && (
         <div className={`analysis-body ${isGraphExpanded ? 'graph-expanded' : ''}`}>
           {!isGraphExpanded && (
             <section className="analysis-section">

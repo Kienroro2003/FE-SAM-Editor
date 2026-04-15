@@ -6,12 +6,12 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const rawHttpClient = axios.create({
   baseURL: apiBaseUrl,
-  withCredentials: false,
+  withCredentials: true,
 });
 
 export const httpClient = axios.create({
   baseURL: apiBaseUrl,
-  withCredentials: false,
+  withCredentials: true,
 });
 
 let refreshInFlight: Promise<string | null> | null = null;

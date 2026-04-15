@@ -1,3 +1,4 @@
+import Editor from '@monaco-editor/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { workspaceApi } from '../../shared/api/workspaceApi';
 import type { CoverageFunctionSummaryResponse, WorkspaceFileContentResponse } from '../../shared/api/types';
@@ -13,6 +14,17 @@ interface AiSuggestTestsPanelProps {
   autoSuggestRunId: number | null;
 }
 
+type SuggestionBlock =
+  | {
+      type: 'text';
+      content: string;
+    }
+  | {
+      type: 'code';
+      content: string;
+      language: string;
+    };
+
 function uniqueSorted(numbers: number[]): number[] {
   return [...new Set(numbers)].sort((left, right) => left - right);
 }
@@ -27,6 +39,99 @@ function mapLanguage(language: string | null | undefined): string {
     return 'java';
   }
   return normalized;
+}
+
+function mapSuggestionCodeLanguage(languageHint: string | undefined, fallbackLanguage: string | null | undefined): string {
+  const normalizedHint = (languageHint ?? '').trim().toLowerCase();
+  const languageMap: Record<string, string> = {
+    js: 'javascript',
+    jsx: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    py: 'python',
+    yml: 'yaml',
+    md: 'markdown',
+  };
+
+  if (normalizedHint.length > 0) {
+    return languageMap[normalizedHint] ?? normalizedHint;
+  }
+
+  return mapLanguage(fallbackLanguage);
+}
+
+function formatSuggestionExplanation(rawText: string): string {
+  return rawText
+    .replace(/\r\n/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/(^|\n)(\d+)\.\*\*/g, '$1$2. **')
+    .replace(/\*\*Testfor`([^`]+)`/g, '**Test for `$1`')
+    .replace(/Thistesttargetsuncoveredlines/gi, 'This test targets uncovered lines ')
+    .replace(/([a-zA-Z])(\d)/g, '$1 $2')
+    .replace(/(\d)([a-zA-Z])/g, '$1 $2')
+    .replace(/(\d)and(\d)/gi, '$1 and $2')
+    .replace(/([.!?])([A-Za-z])/g, '$1 $2')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+}
+
+function splitSuggestionBlocks(rawText: string, fallbackLanguage: string | null | undefined): SuggestionBlock[] {
+  const normalized = rawText
+    .replace(/\r\n/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/```([a-zA-Z0-9_+-]+)(?=\S)/g, '```$1\n');
+
+  const fencePattern = /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g;
+  const blocks: SuggestionBlock[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while (true) {
+    match = fencePattern.exec(normalized);
+    if (!match) {
+      break;
+    }
+
+    const beforeFence = normalized.slice(lastIndex, match.index);
+    const formattedText = formatSuggestionExplanation(beforeFence);
+    if (formattedText.length > 0) {
+      blocks.push({
+        type: 'text',
+        content: formattedText,
+      });
+    }
+
+    const languageHint = match[1]?.trim();
+    const codeContent = match[2].replace(/^\n+|\n+$/g, '');
+    if (codeContent.trim().length > 0) {
+      blocks.push({
+        type: 'code',
+        language: mapSuggestionCodeLanguage(languageHint, fallbackLanguage),
+        content: codeContent,
+      });
+    }
+
+    lastIndex = fencePattern.lastIndex;
+  }
+
+  const tail = normalized.slice(lastIndex);
+  const formattedTail = formatSuggestionExplanation(tail);
+  if (formattedTail.length > 0) {
+    blocks.push({
+      type: 'text',
+      content: formattedTail,
+    });
+  }
+
+  return blocks;
+}
+
+function codeBlockHeight(content: string): string {
+  const lineCount = content.split('\n').length;
+  const visibleLines = Math.min(Math.max(lineCount, 6), 24);
+  return `${visibleLines * 20 + 24}px`;
 }
 
 function toWorkspacePath(path: string): string {
@@ -107,6 +212,10 @@ export function AiSuggestTestsPanel({
 }: AiSuggestTestsPanelProps) {
   const { suggestionText, suggestError, isSuggesting, startSuggesting, stopSuggesting } = useAiSuggestTestsStream();
   const lastAutoRunIdRef = useRef<number | null>(null);
+  const suggestionBlocks = useMemo(
+    () => splitSuggestionBlocks(suggestionText, sourceFile?.language),
+    [suggestionText, sourceFile?.language],
+  );
 
   const { uncoveredFunctions, coveredFunctions, uncoveredLines, coveredLines } = useMemo(() => {
     const nextUncoveredFunctions: string[] = [];
@@ -248,7 +357,50 @@ export function AiSuggestTestsPanel({
         <div className="analysis-run-details">
           <div className="analysis-run-output-block">
             <div className="analysis-run-output-label">suggested tests</div>
-            <pre>{suggestionText}</pre>
+            <div className="analysis-run-suggestion-content">
+              {suggestionBlocks.length > 0 ? (
+                suggestionBlocks.map((block, index) => {
+                  if (block.type === 'code') {
+                    return (
+                      <div className="analysis-run-suggest-code" key={`code-${index}`}>
+                        <Editor
+                          height={codeBlockHeight(block.content)}
+                          theme="vs"
+                          language={block.language}
+                          value={block.content}
+                          options={{
+                            readOnly: true,
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            fontSize: 13,
+                            lineHeight: 20,
+                            fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
+                            wordWrap: 'on',
+                            renderLineHighlight: 'none',
+                            glyphMargin: false,
+                            folding: false,
+                            overviewRulerLanes: 0,
+                            padding: {
+                              top: 8,
+                              bottom: 8,
+                            },
+                          }}
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <pre className="analysis-run-suggest-text" key={`text-${index}`}>
+                      {block.content}
+                    </pre>
+                  );
+                })
+              ) : (
+                <pre className="analysis-run-suggest-text">{formatSuggestionExplanation(suggestionText)}</pre>
+              )}
+            </div>
           </div>
         </div>
       )}

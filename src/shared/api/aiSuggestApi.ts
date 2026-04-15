@@ -50,6 +50,7 @@ export async function streamAiSuggestedTests(
 
   const response = await fetch(AI_SUGGEST_ENDPOINT, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
@@ -95,13 +96,19 @@ export async function streamAiSuggestedTests(
   const decoder = new TextDecoder();
   let buffer = '';
   let eventName = '';
+  let pendingLineBuffer = '';
+
+  const normalizeSseDataLine = (line: string): string => {
+    // Per SSE spec, a single optional space may appear after `data:`.
+    return line.startsWith(' ') ? line.slice(1) : line;
+  };
 
   const flushEvent = () => {
     if (!eventName) {
       return;
     }
 
-    const eventData = buffer.trimEnd();
+    const eventData = buffer;
     if (eventName === 'token' && eventData) {
       callbacks.onToken(eventData);
     }
@@ -110,34 +117,44 @@ export async function streamAiSuggestedTests(
     buffer = '';
   };
 
+  const processSseLine = (line: string) => {
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim();
+      return;
+    }
+
+    if (line.startsWith('data:')) {
+      const dataPart = normalizeSseDataLine(line.slice(5));
+      buffer = buffer.length > 0 ? `${buffer}\n${dataPart}` : dataPart;
+      return;
+    }
+
+    if (line.trim() === '') {
+      flushEvent();
+    }
+  };
+
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
-        flushEvent();
         break;
       }
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split(/\r?\n/);
+      pendingLineBuffer += decoder.decode(value, { stream: true });
+      const lines = pendingLineBuffer.split(/\r?\n/);
+      pendingLineBuffer = lines.pop() ?? '';
 
       for (const line of lines) {
-        if (line.startsWith('event:')) {
-          eventName = line.slice(6).trim();
-          continue;
-        }
-
-        if (line.startsWith('data:')) {
-          const dataPart = line.slice(5).trimStart();
-          buffer = buffer.length > 0 ? `${buffer}\n${dataPart}` : dataPart;
-          continue;
-        }
-
-        if (line.trim() === '') {
-          flushEvent();
-        }
+        processSseLine(line);
       }
     }
+
+    pendingLineBuffer += decoder.decode();
+    if (pendingLineBuffer.length > 0) {
+      processSseLine(pendingLineBuffer);
+    }
+    flushEvent();
   } catch (error) {
     if ((error as Error).name !== 'AbortError') {
       callbacks.onError('AI suggest stream interrupted. Please try again.');
