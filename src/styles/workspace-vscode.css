@@ -1447,6 +1447,430 @@
   margin-left: 2px;
 }
 
+/* ===== DASHBOARD PANEL ===== */
+.workspace-page.workspace-ide .dashboard-panel {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workspace-page.workspace-ide .dashboard-loading {
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ide-text-muted);
+  font-size: 13px;
+  padding: 16px;
+}
+
+.workspace-page.workspace-ide .dashboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-page.workspace-ide .dashboard-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workspace-page.workspace-ide .dashboard-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ide-text-muted);
+  text-transform: uppercase;
+}
+
+.workspace-page.workspace-ide .dashboard-action-button {
+  min-height: 26px;
+  border: 1px solid var(--ide-border);
+  background: var(--ide-bg-elev-1);
+  color: var(--ide-text-main);
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+}
+
+.workspace-page.workspace-ide .dashboard-action-button:hover:not(:disabled) {
+  border-color: var(--ide-accent);
+  color: var(--ide-accent);
+  box-shadow: none;
+  transform: none;
+}
+
+.workspace-page.workspace-ide .dashboard-action-button.primary {
+  border-color: color-mix(in srgb, var(--ide-accent) 38%, white);
+  background: linear-gradient(135deg, #2b82e6 0%, #0a67d0 100%);
+  color: #ffffff;
+}
+
+.workspace-page.workspace-ide .dashboard-action-button.primary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ide-accent) 55%, white);
+  box-shadow: 0 6px 14px rgb(10 103 208 / 22%);
+  filter: brightness(1.04);
+}
+
+.workspace-page.workspace-ide .dashboard-action-button .loading-spinner {
+  width: 11px;
+  height: 11px;
+}
+
+.workspace-page.workspace-ide .dashboard-empty-state {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px dashed var(--ide-border);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--ide-text-muted);
+  font-size: 12px;
+  background: #f7faff;
+}
+
+.workspace-page.workspace-ide .dashboard-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.workspace-page.workspace-ide .dashboard-card {
+  border: 1px solid var(--ide-border);
+  background: linear-gradient(160deg, #ffffff 0%, #f6faff 100%);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgb(30 42 59 / 8%);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.workspace-page.workspace-ide .dashboard-card:hover {
+  box-shadow: 0 6px 16px rgb(30 42 59 / 12%);
+  transform: translateY(-1px);
+}
+
+.workspace-page.workspace-ide .dashboard-card.accent {
+  background: linear-gradient(160deg, #f0f7ff 0%, #e6f0ff 100%);
+  border-color: color-mix(in srgb, var(--ide-accent) 28%, white);
+}
+
+.workspace-page.workspace-ide .dashboard-card-icon {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--ide-bg-elev-2);
+  border: 1px solid var(--ide-border);
+}
+
+.workspace-page.workspace-ide .dashboard-card.accent .dashboard-card-icon {
+  background: rgb(10 103 208 / 12%);
+  border-color: color-mix(in srgb, var(--ide-accent) 30%, white);
+}
+
+.workspace-page.workspace-ide .dashboard-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workspace-page.workspace-ide .dashboard-card-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ide-text-muted);
+  text-transform: uppercase;
+}
+
+.workspace-page.workspace-ide .dashboard-card-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ide-text-main);
+  line-height: 1.1;
+}
+
+.workspace-page.workspace-ide .dashboard-card.accent .dashboard-card-value {
+  color: var(--ide-accent-strong);
+}
+
+.workspace-page.workspace-ide .dashboard-card-sublabel {
+  font-size: 10px;
+  color: var(--ide-text-muted);
+  line-height: 1.3;
+}
+
+.workspace-page.workspace-ide .dashboard-bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--ide-border);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.workspace-page.workspace-ide .dashboard-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-page.workspace-ide .dashboard-bar-label {
+  width: 36px;
+  min-width: 36px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ide-text-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-align: right;
+}
+
+.workspace-page.workspace-ide .dashboard-bar-track {
+  flex: 1;
+  height: 16px;
+  background: var(--ide-bg-elev-2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.workspace-page.workspace-ide .dashboard-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2b82e6 0%, #0a67d0 100%);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.workspace-page.workspace-ide .dashboard-bar-count {
+  width: 24px;
+  min-width: 24px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ide-text-main);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-align: right;
+}
+
+.workspace-page.workspace-ide .dashboard-complexity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.workspace-page.workspace-ide .dashboard-complexity-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--ide-text-muted);
+  font-weight: 600;
+}
+
+.workspace-page.workspace-ide .dashboard-complexity-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.workspace-page.workspace-ide .dashboard-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgb(183 121 31 / 36%);
+  background: rgb(183 121 31 / 10%);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ide-warning);
+  line-height: 1.4;
+}
+
+.workspace-page.workspace-ide .dashboard-alert-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.workspace-page.workspace-ide .dashboard-alert strong {
+  font-weight: 700;
+}
+
+.workspace-page.workspace-ide .dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workspace-page.workspace-ide .dashboard-list-item {
+  border: 1px solid var(--ide-border);
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: border-color 0.12s ease;
+}
+
+.workspace-page.workspace-ide .dashboard-list-item:hover {
+  border-color: color-mix(in srgb, var(--ide-accent) 38%, white);
+}
+
+.workspace-page.workspace-ide .dashboard-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-page.workspace-ide .dashboard-list-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ide-text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-page.workspace-ide .dashboard-list-meta {
+  font-size: 10px;
+  color: var(--ide-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-page.workspace-ide .dashboard-list-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.workspace-page.workspace-ide .dashboard-complexity-badge,
+.workspace-page.workspace-ide .dashboard-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  white-space: nowrap;
+}
+
+.workspace-page.workspace-ide .dashboard-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--ide-border);
+  background: var(--ide-bg-elev-2);
+  color: var(--ide-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workspace-page.workspace-ide .dashboard-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--ide-border);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workspace-page.workspace-ide .dashboard-source-badge.github {
+  color: var(--ide-text-main);
+  background: rgb(30 42 59 / 8%);
+}
+
+.workspace-page.workspace-ide .dashboard-source-badge.local_folder {
+  color: var(--ide-text-muted);
+  background: transparent;
+}
+
+/* ===== DASHBOARD FULLSCREEN MODE ===== */
+.workspace-page.workspace-ide .ide-dashboard-fullscreen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 70% 10%, rgb(10 103 208 / 14%), transparent 38%),
+    radial-gradient(circle at 30% 85%, rgb(10 103 208 / 8%), transparent 28%),
+    linear-gradient(180deg, #f4f7fb 0%, #eef3fa 100%);
+}
+
+.workspace-page.workspace-ide .ide-dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ide-border);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%);
+  box-shadow: 0 2px 8px rgb(30 42 59 / 8%);
+  flex-shrink: 0;
+}
+
+.workspace-page.workspace-ide .ide-dashboard-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ide-text-main);
+  letter-spacing: -0.01em;
+}
+
+.workspace-page.workspace-ide .ide-dashboard-fullscreen .dashboard-panel {
+  padding: 14px 20px;
+}
+
+.workspace-page.workspace-ide .ide-dashboard-fullscreen .dashboard-cards-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.workspace-page.workspace-ide .ide-dashboard-fullscreen .dashboard-section {
+  padding: 0 2px;
+}
+
+/* ===== DASHBOARD PANEL END ===== */
+
 @media (max-width: 1100px) {
   .workspace-page.workspace-ide .ide-title-profile {
     max-width: 180px;
