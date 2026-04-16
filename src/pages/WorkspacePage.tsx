@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent, useCallback, use
 import { useNavigate } from 'react-router-dom';
 import { AnalysisPanel, type AnalysisToolView } from '../components/workspace/AnalysisPanel';
 import { CodeViewer } from '../components/workspace/CodeViewer';
+import { DashboardPanel } from '../components/workspace/DashboardPanel';
 import { DeleteWorkspaceModal } from '../components/workspace/DeleteWorkspaceModal';
 import { ImportWorkspaceModal } from '../components/workspace/ImportWorkspaceModal';
 import { WorkspaceList } from '../components/workspace/WorkspaceList';
@@ -22,7 +23,7 @@ import { buildZipFromFolderFiles, resolveFolderName } from '../shared/utils/work
 
 type ImportAction = 'github' | 'zip' | null;
 type AuthAction = 'refresh' | 'logout' | 'logoutAll' | null;
-type ActivityView = 'explorer' | 'search' | 'account';
+type ActivityView = 'explorer' | 'search' | 'dashboard' | 'account';
 type BottomPanelTab = 'terminal' | 'problems';
 type InputDialogMode = 'rename' | 'new-file' | 'new-folder';
 
@@ -100,6 +101,8 @@ function resolveSidebarTitle(view: ActivityView): string {
       return 'SEARCH';
     case 'account':
       return 'ACCOUNT';
+    case 'dashboard':
+      return 'DASHBOARD';
     default:
       return 'EXPLORER';
   }
@@ -1814,7 +1817,7 @@ export function WorkspacePage() {
         </div>
       </header>
 
-      <section className="ide-main-content">
+      <section className={`ide-main-content ${activityView === 'dashboard' ? 'dashboard-fullscreen' : ''}`}>
         <aside className="ide-activity-bar" aria-label="Primary activity bar">
           <button
             type="button"
@@ -1834,6 +1837,14 @@ export function WorkspacePage() {
           </button>
           <button
             type="button"
+            className={`ide-activity-button ${activityView === 'dashboard' ? 'active' : ''}`}
+            onClick={() => openActivityView('dashboard')}
+            title="Dashboard"
+          >
+            📊
+          </button>
+          <button
+            type="button"
             className={`ide-activity-button ${activityView === 'account' ? 'active' : ''}`}
             onClick={() => openActivityView('account')}
             title="Account"
@@ -1842,386 +1853,397 @@ export function WorkspacePage() {
           </button>
         </aside>
 
-        {!isSidebarCollapsed && (
-          <aside className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
-            <header className="ide-sidebar-header">
-              <span className="ide-sidebar-title">{sidebarTitle}</span>
-              <div className="ide-sidebar-actions">
-                <button type="button" className="ide-icon-button" title="Import Workspace" onClick={() => setIsImportModalOpen(true)}>
-                  ⤓
-                </button>
-                {(activityView === 'explorer' || activityView === 'search') && selectedProjectId !== null && (
-                  <button type="button" className="ide-icon-button" title="Collapse all" onClick={handleCollapseAllFolders}>
-                    ⇱
-                  </button>
-                )}
-                {(activityView === 'explorer' || activityView === 'search') && selectedProjectId !== null && (
-                  <button type="button" className="ide-icon-button" title="Workspace list" onClick={handleBackToProjects}>
-                    ↩
-                  </button>
-                )}
-              </div>
-            </header>
+        {activityView === 'dashboard' ? (
+          <div className="ide-dashboard-fullscreen">
+            <div className="ide-dashboard-header">
+              <span className="ide-dashboard-title">📊 Dashboard</span>
+            </div>
+            <DashboardPanel />
+          </div>
+        ) : (
+          <>
+            {!isSidebarCollapsed && (
+              <aside className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
+                <header className="ide-sidebar-header">
+                  <span className="ide-sidebar-title">{sidebarTitle}</span>
+                  <div className="ide-sidebar-actions">
+                    <button type="button" className="ide-icon-button" title="Import Workspace" onClick={() => setIsImportModalOpen(true)}>
+                      ⤓
+                    </button>
+                    {(activityView === 'explorer' || activityView === 'search') && selectedProjectId !== null && (
+                      <button type="button" className="ide-icon-button" title="Collapse all" onClick={handleCollapseAllFolders}>
+                        ⇱
+                      </button>
+                    )}
+                    {(activityView === 'explorer' || activityView === 'search') && selectedProjectId !== null && (
+                      <button type="button" className="ide-icon-button" title="Workspace list" onClick={handleBackToProjects}>
+                        ↩
+                      </button>
+                    )}
+                  </div>
+                </header>
 
-            {activityView === 'search' ? (
-              <div className="ide-sidebar-search-panel">
-                <div className="ide-sidebar-hint">Type to filter explorer results</div>
-                <input
-                  value={sidebarQuery}
-                  onChange={(event) => setSidebarQuery(event.target.value)}
-                  className="ide-input"
-                  placeholder="Search in explorer"
-                />
-              </div>
-            ) : activityView === 'account' ? (
-              <div className="ide-account-panel">
-                <div className="ide-account-email">{profile?.email ?? 'Authenticated user'}</div>
-                <button
-                  type="button"
-                  className="ide-secondary-button"
-                  onClick={() => {
-                    void handleRefreshToken();
-                  }}
-                  disabled={activeAuthAction !== null}
-                >
-                  {activeAuthAction === 'refresh' ? 'Refreshing...' : 'Refresh Session'}
-                </button>
-                <button
-                  type="button"
-                  className="ide-secondary-button"
-                  onClick={() => {
-                    void handleLogout();
-                  }}
-                  disabled={activeAuthAction !== null}
-                >
-                  {activeAuthAction === 'logout' ? 'Logging out...' : 'Logout'}
-                </button>
-                <button
-                  type="button"
-                  className="ide-secondary-button danger"
-                  onClick={() => {
-                    void handleLogoutAll();
-                  }}
-                  disabled={activeAuthAction !== null}
-                >
-                  {activeAuthAction === 'logoutAll' ? 'Logging out...' : 'Logout All'}
-                </button>
-              </div>
-            ) : (
-              <>
-                <input
-                  className="ide-input ide-sidebar-filter"
-                  placeholder={selectedProjectId === null ? 'Find workspace...' : 'Filter files...'}
-                  value={sidebarQuery}
-                  onChange={(event) => setSidebarQuery(event.target.value)}
-                />
-
-                {selectedProjectId === null ? (
-                  <div className="ide-workspace-list-wrapper">
-                    <WorkspaceList
-                      items={workspaces}
-                      selectedProjectId={selectedProjectId}
-                      onSelect={handleSelectWorkspace}
-                      onDelete={handleRequestDeleteWorkspace}
-                      deletingProjectId={deletingProjectId}
-                      isLoading={isLoadingWorkspaces}
+                {activityView === 'search' ? (
+                  <div className="ide-sidebar-search-panel">
+                    <div className="ide-sidebar-hint">Type to filter explorer results</div>
+                    <input
+                      value={sidebarQuery}
+                      onChange={(event) => setSidebarQuery(event.target.value)}
+                      className="ide-input"
+                      placeholder="Search in explorer"
                     />
                   </div>
+                ) : activityView === 'account' ? (
+                  <div className="ide-account-panel">
+                    <div className="ide-account-email">{profile?.email ?? 'Authenticated user'}</div>
+                    <button
+                      type="button"
+                      className="ide-secondary-button"
+                      onClick={() => {
+                        void handleRefreshToken();
+                      }}
+                      disabled={activeAuthAction !== null}
+                    >
+                      {activeAuthAction === 'refresh' ? 'Refreshing...' : 'Refresh Session'}
+                    </button>
+                    <button
+                      type="button"
+                      className="ide-secondary-button"
+                      onClick={() => {
+                        void handleLogout();
+                      }}
+                      disabled={activeAuthAction !== null}
+                    >
+                      {activeAuthAction === 'logout' ? 'Logging out...' : 'Logout'}
+                    </button>
+                    <button
+                      type="button"
+                      className="ide-secondary-button danger"
+                      onClick={() => {
+                        void handleLogoutAll();
+                      }}
+                      disabled={activeAuthAction !== null}
+                    >
+                      {activeAuthAction === 'logoutAll' ? 'Logging out...' : 'Logout All'}
+                    </button>
+                  </div>
                 ) : (
-                  <div className="ide-tree-shell">
-                    {isLoadingTree && <div className="ide-tree-empty">Loading workspace tree...</div>}
-                    {!isLoadingTree && visibleExplorerNodes.length === 0 && (
-                      <div className="ide-tree-empty">
-                        {explorerNodes.length === 0 ? 'No files in workspace.' : 'No file matched your filter.'}
+                  <>
+                    <input
+                      className="ide-input ide-sidebar-filter"
+                      placeholder={selectedProjectId === null ? 'Find workspace...' : 'Filter files...'}
+                      value={sidebarQuery}
+                      onChange={(event) => setSidebarQuery(event.target.value)}
+                    />
+
+                    {selectedProjectId === null ? (
+                      <div className="ide-workspace-list-wrapper">
+                        <WorkspaceList
+                          items={workspaces}
+                          selectedProjectId={selectedProjectId}
+                          onSelect={handleSelectWorkspace}
+                          onDelete={handleRequestDeleteWorkspace}
+                          deletingProjectId={deletingProjectId}
+                          isLoading={isLoadingWorkspaces}
+                        />
+                      </div>
+                    ) : (
+                      <div className="ide-tree-shell">
+                        {isLoadingTree && <div className="ide-tree-empty">Loading workspace tree...</div>}
+                        {!isLoadingTree && visibleExplorerNodes.length === 0 && (
+                          <div className="ide-tree-empty">
+                            {explorerNodes.length === 0 ? 'No files in workspace.' : 'No file matched your filter.'}
+                          </div>
+                        )}
+                        {!isLoadingTree && visibleExplorerNodes.length > 0 && renderExplorerBranch(visibleExplorerNodes, 0)}
                       </div>
                     )}
-                    {!isLoadingTree && visibleExplorerNodes.length > 0 && renderExplorerBranch(visibleExplorerNodes, 0)}
-                  </div>
+                  </>
                 )}
-              </>
+              </aside>
             )}
-          </aside>
-        )}
 
-        {!isSidebarCollapsed && (
-          <div
-            className="ide-sidebar-resize"
-            role="separator"
-            aria-orientation="vertical"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setDragState({
-                kind: 'sidebar',
-                startPointer: event.clientX,
-                startSize: sidebarWidth,
-              });
-            }}
-          />
-        )}
-
-        <section className="ide-editor-container" onContextMenu={openEditorContextMenu}>
-          <header className="ide-tab-bar">
-            <div className="ide-tab-list">
-              {openTabs.map((path) => {
-                const isActive = path === selectedFilePath;
-                const modified = isTabModified(path);
-                return (
-                  <button
-                    type="button"
-                    key={path}
-                    className={`ide-tab ${isActive ? 'active' : ''}`}
-                    onClick={() => handleActivateTab(path)}
-                  >
-                    <span className="ide-tab-title" title={path}>
-                      {resolveTabTitle(path)}
-                    </span>
-                    {modified && <span className="ide-tab-modified" aria-hidden="true" />}
-                    <span
-                      className="ide-tab-close"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleCloseTab(path);
-                      }}
-                    >
-                      ×
-                    </span>
-                  </button>
-                );
-              })}
-
-              {openTabs.length === 0 && <div className="ide-tab-empty">No file opened</div>}
-            </div>
-
-            <div className="ide-tab-actions">
-              <button type="button" className="ide-icon-button" onClick={handleSaveActive} title="Save (Ctrl+S)">
-                💾
-              </button>
-              <button
-                type="button"
-                className="ide-icon-button"
-                onClick={() => openToolTab('analysis')}
-                title="Open right tool tab"
-              >
-                📊
-              </button>
-            </div>
-          </header>
-
-          <div className="ide-editor-region">
-            {selectedFilePath ? (
-              <CodeViewer
-                file={activeEditorFile}
-                isLoading={isLoadingFile}
-                focusRequest={codeFocusRequest}
-                coverageDecorations={codeCoverageDecorations}
-                onContentChange={handleEditorContentChange}
-                onCursorChange={(line, column) => {
-                  setCursorLine(line);
-                  setCursorColumn(column);
+            {!isSidebarCollapsed && (
+              <div
+                className="ide-sidebar-resize"
+                role="separator"
+                aria-orientation="vertical"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setDragState({
+                    kind: 'sidebar',
+                    startPointer: event.clientX,
+                    startSize: sidebarWidth,
+                  });
                 }}
               />
-            ) : (
-              <div className="ide-editor-empty-state">
-                <div className="ide-empty-logo">SAM</div>
-                <h2>Welcome to SAM Editor Workbench</h2>
-                <p>
-                  VS Code style layout with explorer on the left, code editor center, and analysis/coverage/AI tools on the right.
-                </p>
-                <div className="ide-shortcut-grid">
-                  <button type="button" className="ide-shortcut-card" onClick={openCommandPalette}>
-                    <span>Command Palette</span>
-                    <strong>Ctrl+Shift+P</strong>
-                  </button>
-                  <button type="button" className="ide-shortcut-card" onClick={toggleSidebar}>
-                    <span>Toggle Sidebar</span>
-                    <strong>Ctrl+B</strong>
-                  </button>
-                  <button type="button" className="ide-shortcut-card" onClick={toggleBottomPanel}>
-                    <span>Toggle Panel</span>
-                    <strong>Ctrl+`</strong>
-                  </button>
-                  <button
-                    type="button"
-                    className="ide-shortcut-card"
-                    onClick={() => openToolTab('analysis')}
-                  >
-                    <span>Analysis / Coverage / AI</span>
-                    <strong>Right Tool Tabs</strong>
-                  </button>
-                </div>
-              </div>
             )}
-          </div>
 
-          {!isPanelCollapsed && (
-            <div
-              className="ide-panel-resize"
-              role="separator"
-              aria-orientation="horizontal"
-              onMouseDown={(event) => {
-                event.preventDefault();
-                setIsPanelMaximized(false);
-                setDragState({
-                  kind: 'panel',
-                  startPointer: event.clientY,
-                  startSize: panelHeight,
-                });
-              }}
-            />
-          )}
+            <section className="ide-editor-container" onContextMenu={openEditorContextMenu}>
+              <header className="ide-tab-bar">
+                <div className="ide-tab-list">
+                  {openTabs.map((path) => {
+                    const isActive = path === selectedFilePath;
+                    const modified = isTabModified(path);
+                    return (
+                      <button
+                        type="button"
+                        key={path}
+                        className={`ide-tab ${isActive ? 'active' : ''}`}
+                        onClick={() => handleActivateTab(path)}
+                      >
+                        <span className="ide-tab-title" title={path}>
+                          {resolveTabTitle(path)}
+                        </span>
+                        {modified && <span className="ide-tab-modified" aria-hidden="true" />}
+                        <span
+                          className="ide-tab-close"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleCloseTab(path);
+                          }}
+                        >
+                          ×
+                        </span>
+                      </button>
+                    );
+                  })}
 
-          {!isPanelCollapsed && (
-            <section
-              className={`ide-bottom-panel ${isPanelMaximized ? 'maximized' : ''}`}
-              style={isPanelMaximized ? { height: '70vh' } : { height: `${panelHeight}px` }}
-            >
-              <header className="ide-panel-header">
-                <div className="ide-panel-tabs">
-                  <button
-                    type="button"
-                    className={`ide-panel-tab ${panelTab === 'terminal' ? 'active' : ''}`}
-                    onClick={() => setPanelTab('terminal')}
-                  >
-                    TERMINAL
-                  </button>
-                  <button
-                    type="button"
-                    className={`ide-panel-tab ${panelTab === 'problems' ? 'active' : ''}`}
-                    onClick={() => setPanelTab('problems')}
-                  >
-                    PROBLEMS
-                  </button>
+                  {openTabs.length === 0 && <div className="ide-tab-empty">No file opened</div>}
                 </div>
 
-                <div className="ide-panel-actions">
+                <div className="ide-tab-actions">
+                  <button type="button" className="ide-icon-button" onClick={handleSaveActive} title="Save (Ctrl+S)">
+                    💾
+                  </button>
                   <button
                     type="button"
                     className="ide-icon-button"
-                    onClick={() => {
-                      setIsPanelMaximized((previous) => !previous);
-                    }}
-                    title={isPanelMaximized ? 'Restore panel' : 'Maximize panel'}
+                    onClick={() => openToolTab('analysis')}
+                    title="Open right tool tab"
                   >
-                    {isPanelMaximized ? '🗗' : '🗖'}
-                  </button>
-                  <button type="button" className="ide-icon-button" onClick={toggleBottomPanel} title="Close panel">
-                    ✕
+                    📊
                   </button>
                 </div>
               </header>
 
-              <div className="ide-panel-body">
-                {panelTab === 'terminal' && (
-                  <div className="ide-terminal-output">
-                    {terminalEntries.map((entry) => (
-                      <div key={entry} className="ide-terminal-line">
-                        {entry}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {panelTab === 'problems' && (
-                  <div className="ide-problems-output">
-                    {error ? (
-                      <div className="ide-problem-item">Error: {error}</div>
-                    ) : (
-                      <div className="ide-problem-item muted">No active diagnostics.</div>
-                    )}
-                    {message && <div className="ide-problem-item">Info: {message}</div>}
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-        </section>
-
-        {!isToolPanelCollapsed && (
-          <div
-            className="ide-tool-resize"
-            role="separator"
-            aria-orientation="vertical"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setDragState({
-                kind: 'tool-panel',
-                startPointer: event.clientX,
-                startSize: toolPanelWidth,
-              });
-            }}
-          />
-        )}
-
-        <aside
-          className={`ide-tool-sidebar ${isToolPanelCollapsed ? 'collapsed' : ''}`}
-          style={!isToolPanelCollapsed ? { width: `${toolPanelWidth}px` } : undefined}
-        >
-          <div className="ide-tool-rail" aria-label="Analysis tools">
-            <button
-              type="button"
-              className={`ide-tool-rail-button tool-analysis ${activeToolTab === 'analysis' ? 'active' : ''}`}
-              title="Analysis"
-              aria-label="Analysis"
-              onClick={() => openToolTab('analysis')}
-            >
-              <span aria-hidden="true">📊</span>
-            </button>
-            <button
-              type="button"
-              className={`ide-tool-rail-button tool-coverage ${activeToolTab === 'coverage' ? 'active' : ''}`}
-              title="Coverage"
-              aria-label="Coverage"
-              onClick={() => openToolTab('coverage')}
-            >
-              <span aria-hidden="true">🛡️</span>
-            </button>
-            <button
-              type="button"
-              className={`ide-tool-rail-button tool-ai ${activeToolTab === 'ai' ? 'active' : ''}`}
-              title="AI Suggest"
-              aria-label="AI Suggest"
-              onClick={() => openToolTab('ai')}
-            >
-              <span aria-hidden="true">✨</span>
-            </button>
-            <button
-              type="button"
-              className="ide-tool-rail-button tool-toggle"
-              title={isToolPanelCollapsed ? 'Open tool panel' : 'Collapse tool panel'}
-              onClick={toggleToolPanel}
-            >
-              {isToolPanelCollapsed ? '>' : '<'}
-            </button>
-          </div>
-
-          {!isToolPanelCollapsed && (
-            <div className="ide-tool-content">
-              <header className="ide-tool-header">
-                <span className="ide-tool-title">{activeToolTitle}</span>
-                <button type="button" className="ide-icon-button" title="Collapse tool panel" onClick={toggleToolPanel}>
-                  ✕
-                </button>
-              </header>
-              <div className="ide-tool-body">
-                {selectedProjectId === null ? (
-                  <div className="ide-tree-empty">Select a workspace and open a Java file to use this tool.</div>
-                ) : (
-                  <AnalysisPanel
-                    projectId={selectedProjectId}
-                    selectedFilePath={analysisSelectedFilePath}
-                    file={analysisSelectedFile}
-                    isFileLoading={isLoadingFile}
-                    onFocusCodeRange={handleFocusCodeRange}
-                    onSetCodeCoverageDecorations={handleSetCodeCoverageDecorations}
-                    toolView={activeToolTab}
-                    compact
+              <div className="ide-editor-region">
+                {selectedFilePath ? (
+                  <CodeViewer
+                    file={activeEditorFile}
+                    isLoading={isLoadingFile}
+                    focusRequest={codeFocusRequest}
+                    coverageDecorations={codeCoverageDecorations}
+                    onContentChange={handleEditorContentChange}
+                    onCursorChange={(line, column) => {
+                      setCursorLine(line);
+                      setCursorColumn(column);
+                    }}
                   />
+                ) : (
+                  <div className="ide-editor-empty-state">
+                    <div className="ide-empty-logo">SAM</div>
+                    <h2>Welcome to SAM Editor Workbench</h2>
+                    <p>
+                      VS Code style layout with explorer on the left, code editor center, and analysis/coverage/AI tools on the right.
+                    </p>
+                    <div className="ide-shortcut-grid">
+                      <button type="button" className="ide-shortcut-card" onClick={openCommandPalette}>
+                        <span>Command Palette</span>
+                        <strong>Ctrl+Shift+P</strong>
+                      </button>
+                      <button type="button" className="ide-shortcut-card" onClick={toggleSidebar}>
+                        <span>Toggle Sidebar</span>
+                        <strong>Ctrl+B</strong>
+                      </button>
+                      <button type="button" className="ide-shortcut-card" onClick={toggleBottomPanel}>
+                        <span>Toggle Panel</span>
+                        <strong>Ctrl+`</strong>
+                      </button>
+                      <button
+                        type="button"
+                        className="ide-shortcut-card"
+                        onClick={() => openToolTab('analysis')}
+                      >
+                        <span>Analysis / Coverage / AI</span>
+                        <strong>Right Tool Tabs</strong>
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          )}
-        </aside>
+
+              {!isPanelCollapsed && (
+                <div
+                  className="ide-panel-resize"
+                  role="separator"
+                  aria-orientation="horizontal"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setIsPanelMaximized(false);
+                    setDragState({
+                      kind: 'panel',
+                      startPointer: event.clientY,
+                      startSize: panelHeight,
+                    });
+                  }}
+                />
+              )}
+
+              {!isPanelCollapsed && (
+                <section
+                  className={`ide-bottom-panel ${isPanelMaximized ? 'maximized' : ''}`}
+                  style={isPanelMaximized ? { height: '70vh' } : { height: `${panelHeight}px` }}
+                >
+                  <header className="ide-panel-header">
+                    <div className="ide-panel-tabs">
+                      <button
+                        type="button"
+                        className={`ide-panel-tab ${panelTab === 'terminal' ? 'active' : ''}`}
+                        onClick={() => setPanelTab('terminal')}
+                      >
+                        TERMINAL
+                      </button>
+                      <button
+                        type="button"
+                        className={`ide-panel-tab ${panelTab === 'problems' ? 'active' : ''}`}
+                        onClick={() => setPanelTab('problems')}
+                      >
+                        PROBLEMS
+                      </button>
+                    </div>
+
+                    <div className="ide-panel-actions">
+                      <button
+                        type="button"
+                        className="ide-icon-button"
+                        onClick={() => {
+                          setIsPanelMaximized((previous) => !previous);
+                        }}
+                        title={isPanelMaximized ? 'Restore panel' : 'Maximize panel'}
+                      >
+                        {isPanelMaximized ? '🗗' : '🗖'}
+                      </button>
+                      <button type="button" className="ide-icon-button" onClick={toggleBottomPanel} title="Close panel">
+                        ✕
+                      </button>
+                    </div>
+                  </header>
+
+                  <div className="ide-panel-body">
+                    {panelTab === 'terminal' && (
+                      <div className="ide-terminal-output">
+                        {terminalEntries.map((entry) => (
+                          <div key={entry} className="ide-terminal-line">
+                            {entry}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {panelTab === 'problems' && (
+                      <div className="ide-problems-output">
+                        {error ? (
+                          <div className="ide-problem-item">Error: {error}</div>
+                        ) : (
+                          <div className="ide-problem-item muted">No active diagnostics.</div>
+                        )}
+                        {message && <div className="ide-problem-item">Info: {message}</div>}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+            </section>
+
+            {!isToolPanelCollapsed && (
+              <div
+                className="ide-tool-resize"
+                role="separator"
+                aria-orientation="vertical"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setDragState({
+                    kind: 'tool-panel',
+                    startPointer: event.clientX,
+                    startSize: toolPanelWidth,
+                  });
+                }}
+              />
+            )}
+
+            <aside
+              className={`ide-tool-sidebar ${isToolPanelCollapsed ? 'collapsed' : ''}`}
+              style={!isToolPanelCollapsed ? { width: `${toolPanelWidth}px` } : undefined}
+            >
+              <div className="ide-tool-rail" aria-label="Analysis tools">
+                <button
+                  type="button"
+                  className={`ide-tool-rail-button tool-analysis ${activeToolTab === 'analysis' ? 'active' : ''}`}
+                  title="Analysis"
+                  aria-label="Analysis"
+                  onClick={() => openToolTab('analysis')}
+                >
+                  <span aria-hidden="true">📊</span>
+                </button>
+                <button
+                  type="button"
+                  className={`ide-tool-rail-button tool-coverage ${activeToolTab === 'coverage' ? 'active' : ''}`}
+                  title="Coverage"
+                  aria-label="Coverage"
+                  onClick={() => openToolTab('coverage')}
+                >
+                  <span aria-hidden="true">🛡️</span>
+                </button>
+                <button
+                  type="button"
+                  className={`ide-tool-rail-button tool-ai ${activeToolTab === 'ai' ? 'active' : ''}`}
+                  title="AI Suggest"
+                  aria-label="AI Suggest"
+                  onClick={() => openToolTab('ai')}
+                >
+                  <span aria-hidden="true">✨</span>
+                </button>
+                <button
+                  type="button"
+                  className="ide-tool-rail-button tool-toggle"
+                  title={isToolPanelCollapsed ? 'Open tool panel' : 'Collapse tool panel'}
+                  onClick={toggleToolPanel}
+                >
+                  {isToolPanelCollapsed ? '>' : '<'}
+                </button>
+              </div>
+
+              {!isToolPanelCollapsed && (
+                <div className="ide-tool-content">
+                  <header className="ide-tool-header">
+                    <span className="ide-tool-title">{activeToolTitle}</span>
+                    <button type="button" className="ide-icon-button" title="Collapse tool panel" onClick={toggleToolPanel}>
+                      ✕
+                    </button>
+                  </header>
+                  <div className="ide-tool-body">
+                    {selectedProjectId === null ? (
+                      <div className="ide-tree-empty">Select a workspace and open a Java file to use this tool.</div>
+                    ) : (
+                      <AnalysisPanel
+                        projectId={selectedProjectId}
+                        selectedFilePath={analysisSelectedFilePath}
+                        file={analysisSelectedFile}
+                        isFileLoading={isLoadingFile}
+                        onFocusCodeRange={handleFocusCodeRange}
+                        onSetCodeCoverageDecorations={handleSetCodeCoverageDecorations}
+                        toolView={activeToolTab}
+                        compact
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </aside>
+          </>
+        )}
       </section>
 
       <footer className="ide-status-bar">
